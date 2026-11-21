@@ -115,6 +115,7 @@ class PrivatePlayerState {
     required this.role,
     this.teammates = const [],
     this.checks = const {},
+    this.detectiveChecks = const {},
     this.allowedActions = const [],
   });
 
@@ -127,6 +128,10 @@ class PrivatePlayerState {
   /// Results of this player's night checks (Detective, Don).
   final Map<UserId, Team> checks;
 
+  /// Results of the Don's night checks: true if that player is the
+  /// Detective. Empty for every other role.
+  final Map<UserId, bool> detectiveChecks;
+
   /// Action types this player may send right now, e.g. `['nightHeal']`.
   /// The UI uses it to show the right buttons; the server re-checks anyway.
   final List<String> allowedActions;
@@ -136,6 +141,7 @@ class PrivatePlayerState {
     'role': role.name,
     'teammates': teammates,
     'checks': checks.map((k, v) => MapEntry(k, v.name)),
+    'detectiveChecks': detectiveChecks,
     'allowedActions': allowedActions,
   };
 
@@ -145,6 +151,9 @@ class PrivatePlayerState {
     teammates: decodeStrings(j['teammates']),
     checks: (j['checks'] as Json? ?? const {}).map(
       (k, v) => MapEntry(k, decodeEnum(Team.values, v)),
+    ),
+    detectiveChecks: (j['detectiveChecks'] as Json? ?? const {}).map(
+      (k, v) => MapEntry(k, v! as bool),
     ),
     allowedActions: decodeStrings(j['allowedActions']),
   );
@@ -159,6 +168,7 @@ class GameState {
     required this.settings,
     this.pendingNightActions = const [],
     this.seed = 0,
+    this.engineData = const {},
   });
 
   final PublicGameState public;
@@ -171,12 +181,17 @@ class GameState {
   /// Random seed used for the deal, kept so a match can be replayed.
   final int seed;
 
+  /// The engine's own memory across phases (past heals, check results).
+  /// Plain JSON so the server can store it; only `mafia_engine` reads it.
+  final Json engineData;
+
   Json toJson() => {
     'public': public.toJson(),
     'roles': roles.map((k, v) => MapEntry(k, v.name)),
     'settings': settings.toJson(),
     'pendingNightActions': [for (final a in pendingNightActions) a.toJson()],
     'seed': seed,
+    'engineData': engineData,
   };
 
   factory GameState.fromJson(Json j) => GameState(
@@ -190,5 +205,6 @@ class GameState {
       GameAction.fromJson,
     ),
     seed: j['seed'] as int? ?? 0,
+    engineData: j['engineData'] as Json? ?? const {},
   );
 }
