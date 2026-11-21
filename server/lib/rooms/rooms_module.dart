@@ -26,6 +26,8 @@ class RoomsModule extends ServerModule {
   /// - `JWT_SECRET`: checks access tokens. Without it nobody can sign in.
   /// - `DEV_AUTH=true`: also accept `dev:<userId>` tokens (local only).
   /// - `DATABASE_URL`: keep match records in PostgreSQL; else in memory.
+  /// - `QUICK_MATCH_STAKE`: coins per quick-match game for players who can
+  ///   stake (default 100; 0 makes quick match free for everyone).
   ///
   /// Other streams pass their real [engine], [wallet] and [players] here.
   factory RoomsModule.fromEnvironment({
@@ -57,6 +59,9 @@ class RoomsModule extends ServerModule {
         hub: hub,
         players: players,
         regions: regions,
+        config: RoomsConfig(
+          quickMatchStake: int.tryParse(e['QUICK_MATCH_STAKE'] ?? '') ?? 100,
+        ),
         recorder: db == null || db.isEmpty
             ? InMemoryMatchRecorder()
             : PostgresMatchRecorder(Pool.withUrl(db)),

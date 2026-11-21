@@ -21,6 +21,7 @@ class RoomsConfig {
     this.quickMatchSettings = const RoomSettings(
       visibility: RoomVisibility.public,
     ),
+    this.quickMatchStake = 100,
     this.quickStartDelay = const Duration(seconds: 20),
     this.idleLobbyTimeout = const Duration(minutes: 30),
     this.maxMatchLength = const Duration(hours: 2),
@@ -36,6 +37,12 @@ class RoomsConfig {
 
   /// Settings for rooms that quick match opens. Free by default.
   final RoomSettings quickMatchSettings;
+
+  /// Quick match puts players who may stake (adult, stake country) and can
+  /// cover it into games at this stake; everyone else plays free. The two
+  /// pools never mix. 100 matches the 500-coin welcome gift (5 games).
+  /// 0 makes every quick match free.
+  final int quickMatchStake;
 
   /// Public rooms start on their own this long after reaching
   /// `minPlayers`, or at once when full.
@@ -219,7 +226,8 @@ class RoomService implements RealtimeRooms {
   }
 
   /// Puts the player in the fullest public room they can enter, or opens a
-  /// new public room with [RoomsConfig.quickMatchSettings].
+  /// new public room with [RoomsConfig.quickMatchSettings], at
+  /// [RoomsConfig.quickMatchStake] for players who can stake, else free.
   Future<Room> quickMatch(UserId u) async {
     final current = _roomOf[u];
     if (current != null) {
@@ -230,8 +238,13 @@ class RoomService implements RealtimeRooms {
       }
     }
     final profile = await players.profile(u);
-    final canStake = _stakesAllowed(profile);
-    final coins = canStake ? (await wallet.balance(u)).available : 0;
+    final want = config.quickMatchStake;
+    final stake =
+        want > 0 &&
+            _stakesAllowed(profile) &&
+            (await wallet.balance(u)).canAfford(want)
+        ? want
+        : 0;
     final candidates =
         _rooms.values
             .where(
@@ -241,8 +254,7 @@ class RoomService implements RealtimeRooms {
                   !r.starting &&
                   !r.isFull &&
                   !r.has(u) &&
-                  (r.settings.stake == 0 ||
-                      (canStake && coins >= r.settings.stake)),
+                  r.settings.stake == stake,
             )
             .toList()
           ..sort((a, b) {
@@ -256,7 +268,18 @@ class RoomService implements RealtimeRooms {
         continue; // filled up or started meanwhile; try the next one
       }
     }
-    return create(u, config.quickMatchSettings);
+    final q = config.quickMatchSettings;
+    return create(
+      u,
+      RoomSettings(
+        minPlayers: q.minPlayers,
+        maxPlayers: q.maxPlayers,
+        stake: stake,
+        visibility: RoomVisibility.public,
+        roleCounts: q.roleCounts,
+        durations: q.durations,
+      ),
+    );
   }
 
   Room get(UserId u, RoomId id) {

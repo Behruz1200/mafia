@@ -8,7 +8,9 @@
 
 1. A host creates a room (private by default) and shares the 5-letter code,
    or players use quick match, which fills the fullest public room or opens
-   a new one.
+   a new one. Adults in a stake country with at least 100 coins are matched
+   into 100-coin games (`QUICK_MATCH_STAKE`); everyone else into free games.
+   The two pools never mix.
 2. The host sends `startMatch` on the socket. Public rooms start on their
    own 20 seconds after reaching `minPlayers`, or at once when full.
 3. Start: the match is recorded (`rooms_matches`), then the wallet holds
@@ -58,6 +60,8 @@ For video (stream 3), `RoomService` exposes `room`, `isMember`,
 - `JWT_SECRET`: verifies access tokens (HS256, `sub` = user id, `exp`).
 - `DEV_AUTH=true`: also accepts `dev:<userId>` tokens. Local testing only,
   never on the real server.
+- `QUICK_MATCH_STAKE`: quick-match stake for players who can stake
+  (default 100, decided 2026-11-21; 0 = always free).
 - `DATABASE_URL`: match records in PostgreSQL (migration 0002). Without it
   records stay in memory and crash recovery is off.
 

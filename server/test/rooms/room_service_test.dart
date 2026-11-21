@@ -452,6 +452,27 @@ void main() {
       });
     });
 
+    test('players who can stake get 100-coin games, others free ones', () {
+      fake((a) {
+        final rig = Rig(
+          coins: {'u0': 500, 'u1': 500, 'u2': 50, 'u3': 500},
+          players: TestPlayers(minors: {'u3'}),
+        );
+        final got = <UserId, Room>{};
+        for (final u in ['u0', 'u1', 'u2', 'u3']) {
+          rig.service.quickMatch(u).then((r) => got[u] = r);
+          a.flushMicrotasks();
+        }
+        expect(got['u0']!.settings.stake, 100);
+        expect(got['u1']!.id, got['u0']!.id);
+        expect(got['u2']!.settings.stake, 0, reason: 'cannot cover 100');
+        expect(got['u3']!.settings.stake, 0, reason: 'under 18');
+        expect(got['u3']!.id, got['u2']!.id);
+        expect(got['u2']!.id, isNot(got['u0']!.id));
+        rig.service.dispose();
+      });
+    });
+
     test('a full public room starts at once', () {
       fake((a) {
         final rig = Rig(
