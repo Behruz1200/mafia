@@ -4,6 +4,7 @@ import 'package:shelf_router/shelf_router.dart';
 
 import '../auth/auth_module.dart';
 import '../call/call_module.dart';
+import '../rooms/ports.dart' show FreeMatchesOnlyWallet;
 import '../rooms/rooms_module.dart';
 import '../wallet/wallet_module.dart';
 import 'module.dart';
@@ -13,7 +14,13 @@ import 'module.dart';
 /// [rooms] is built from environment variables unless given (tests pass
 /// their own).
 Handler buildApp({RoomsModule? rooms}) {
-  final roomsModule = rooms ?? RoomsModule.fromEnvironment();
+  final roomsModule =
+      rooms ??
+      RoomsModule.fromEnvironment(
+        // The real coin wallet when there is a database; free games otherwise.
+        wallet:
+            WalletServices.instance?.wallet ?? const FreeMatchesOnlyWallet(),
+      );
   final router = Router()
     ..get(ApiRoutes.health, (Request _) => json({'ok': true}))
     ..get(ApiRoutes.socket, roomsModule.socket);
