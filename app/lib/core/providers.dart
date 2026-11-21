@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/auth/data/api.dart';
 import '../features/auth/data/http_auth_repository.dart';
+import '../features/call/data/livekit_call_controller.dart';
 import '../features/profile/data/http_profile_repository.dart';
 import '../features/rooms/data/http_room_repository.dart';
 import 'config.dart';
@@ -60,9 +61,12 @@ final walletRepositoryProvider = Provider<WalletRepository>(
 );
 
 /// Stream 3 (video).
-final callControllerProvider = Provider<CallController>(
-  (ref) => AppConfig.useFakes ? FakeCallController() : _notYet('Video'),
-);
+final callControllerProvider = Provider<CallController>((ref) {
+  if (AppConfig.useFakes) return FakeCallController();
+  final call = LiveKitCallController();
+  ref.onDispose(call.dispose);
+  return call;
+});
 
 final sessionProvider = StreamProvider<AuthSession?>(
   (ref) => ref.watch(authRepositoryProvider).watchSession(),

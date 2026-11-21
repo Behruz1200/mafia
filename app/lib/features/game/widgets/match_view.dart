@@ -145,6 +145,7 @@ class _MatchViewState extends State<MatchView> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             children: [
               _VideoPanel(
+                roomId: widget.roomId,
                 open: _videoOpen,
                 onToggle: () => setState(() => _videoOpen = !_videoOpen),
                 sleeping: isNight && action == null && _meAlive,
@@ -204,11 +205,13 @@ class _MatchViewState extends State<MatchView> {
 
 class _VideoPanel extends StatelessWidget {
   const _VideoPanel({
+    required this.roomId,
     required this.open,
     required this.onToggle,
     required this.sleeping,
   });
 
+  final RoomId roomId;
   final bool open;
   final VoidCallback onToggle;
   final bool sleeping;
@@ -248,7 +251,7 @@ class _VideoPanel extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   // Stream 3 (video) owns this widget.
-                  const CallView(),
+                  CallView(roomId: roomId),
                   if (sleeping)
                     DecoratedBox(
                       decoration: BoxDecoration(
