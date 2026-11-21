@@ -66,6 +66,7 @@ class FakeProfileRepository implements ProfileRepository {
             displayName: 'Aziza',
             countryCode: 'UZ',
             isAdult: true,
+            hasBirthDate: true,
             createdAt: fixtureNow,
           );
 
@@ -82,6 +83,29 @@ class FakeProfileRepository implements ProfileRepository {
   Future<UserProfile> updateMyProfile(UserProfile profile) async {
     _ctrl.add(_profile = profile);
     return profile;
+  }
+
+  @override
+  Future<UserProfile> setBirthDate(DateTime birthDate) async {
+    final p = _profile!;
+    final now = DateTime.now();
+    var age = now.year - birthDate.year;
+    if (now.month < birthDate.month ||
+        (now.month == birthDate.month && now.day < birthDate.day)) {
+      age--;
+    }
+    final updated = UserProfile(
+      userId: p.userId,
+      displayName: p.displayName,
+      avatarUrl: p.avatarUrl,
+      countryCode: p.countryCode,
+      locale: p.locale,
+      isAdult: age >= 18,
+      hasBirthDate: true,
+      createdAt: p.createdAt,
+    );
+    _ctrl.add(_profile = updated);
+    return updated;
   }
 }
 
