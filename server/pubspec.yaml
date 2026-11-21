@@ -11,6 +11,8 @@ environment:
 
 dependencies:
   contracts: any
+  dart_jsonwebtoken: ^3.4.1
+  http: ^1.6.0
   mafia_engine: any
   postgres: ^3.4.0
   shelf: ^1.4.0

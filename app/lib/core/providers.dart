@@ -2,6 +2,7 @@ import 'package:contracts/contracts.dart';
 import 'package:contracts/testing.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/shop/data/wallet_providers.dart';
 import 'config.dart';
 
 // One provider per contract. Features read these, never each other's
@@ -29,7 +30,8 @@ final roomRepositoryProvider = Provider<RoomRepository>(
 
 /// Stream 4 (coins).
 final walletRepositoryProvider = Provider<WalletRepository>(
-  (ref) => AppConfig.useFakes ? FakeWalletRepository() : _notYet('Coins'),
+  (ref) =>
+      AppConfig.useFakes ? FakeWalletRepository() : createWalletRepository(ref),
 );
 
 /// Stream 3 (video).
