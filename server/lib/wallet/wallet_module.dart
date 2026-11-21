@@ -100,6 +100,8 @@ class WalletModule extends ServerModule {
     r.get(
       ApiRoutes.wallet,
       _signedIn((req, user) async {
+        // New players get their welcome coins the first time they look.
+        await s.wallet.grantWelcome(user, s.config.welcomeCoins);
         return json((await s.wallet.balance(user)).toJson());
       }),
     );

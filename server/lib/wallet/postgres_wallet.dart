@@ -333,6 +333,24 @@ class PostgresWallet implements WalletSettlement {
     });
   }
 
+  /// The one-time welcome gift. Cheap to call on every balance read: after
+  /// the first time it is a single indexed lookup. Returns true only the
+  /// time it actually gives the coins.
+  Future<bool> grantWelcome(UserId userId, int coins) async {
+    if (coins <= 0 || userId == houseAccount) return false;
+    final given = await _db.run(
+      (s) => s.execute(
+        Sql.named(
+          "SELECT 1 FROM ledger WHERE user_id = @u AND kind = 'reward' "
+          "AND reference = 'welcome'",
+        ),
+        parameters: {'u': userId},
+      ),
+    );
+    if (given.isNotEmpty) return false;
+    return grantReward(userId, coins, reference: 'welcome', note: 'welcome');
+  }
+
   /// Manual correction by support. Always needs a [note].
   Future<bool> adjust(
     UserId userId,

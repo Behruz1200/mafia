@@ -252,9 +252,15 @@ void main() {
 
     test('balance, packs, purchase and history', () async {
       final empty = await call('GET', ApiRoutes.wallet, as: user());
+      // First look: the welcome gift, 5 games at the typical stake.
       expect(
         WalletBalance.fromJson((await bodyOf(empty))! as Json).available,
-        0,
+        500,
+      );
+      final again = await call('GET', ApiRoutes.wallet, as: user());
+      expect(
+        WalletBalance.fromJson((await bodyOf(again))! as Json).available,
+        500,
       );
 
       final packs = await call('GET', ApiRoutes.coinPacks, as: user());
@@ -274,7 +280,7 @@ void main() {
       expect(bought.statusCode, 200);
       expect(
         WalletBalance.fromJson((await bodyOf(bought))! as Json).available,
-        550,
+        1050,
       );
 
       final stolen = await call(
@@ -298,8 +304,9 @@ void main() {
         for (final e in (await bodyOf(history))! as List)
           LedgerEntry.fromJson(e as Json),
       ];
-      expect(rows.single.kind, LedgerKind.purchase);
-      expect(rows.single.delta, 550);
+      expect(rows.map((e) => e.kind), [LedgerKind.purchase, LedgerKind.reward]);
+      expect(rows.first.delta, 550);
+      expect(rows.last.delta, 500);
     });
 
     test('bad purchase bodies get 400', () async {

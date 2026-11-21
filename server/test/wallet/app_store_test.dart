@@ -126,6 +126,7 @@ void main() {
         'APPLE_BUNDLE_ID': 'uz.mafia.app',
       })!;
       expect(c.houseCutPercent, 15);
+      expect(c.welcomeCoins, 500); // 5 games at the typical stake of 100
       expect(c.packFor('coins_500')!.bonusCoins, 50);
       expect(c.packFor('coins_1200'), isNull);
       expect(c.apple, isNull);

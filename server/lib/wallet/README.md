@@ -22,6 +22,8 @@ anywhere except into a match pot and back out to that match's winners.
   the rest is split equally between the winners. Forfeited players and
   anyone not in the escrow are never paid. A cancelled match returns
   every stake.
+- **Welcome gift**: the first time a player opens their wallet they get
+  `WELCOME_COINS` once (ledger kind `reward`, reference `welcome`).
 - **Purchase**: the app buys through StoreKit and sends the transaction id.
   The server asks Apple for that transaction and credits the pack only if
   Apple confirms our bundle id, the same product, a consumable, not
@@ -48,6 +50,7 @@ before it calls `holdStakes`.
 | --- | --- |
 | `DATABASE_URL` | Without it the wallet routes answer 501 |
 | `HOUSE_CUT_PERCENT` | 0 to 100, default 10 |
+| `WELCOME_COINS` | Free coins each new player gets once, on their first balance check. Default 500: 5 games at a typical stake of 100 (Behruz, 2026-11-21). 0 turns it off |
 | `COIN_PACKS` | Optional, `coins_100:100:0,coins_500:500:50` (id:coins:bonus). Default in `wallet_config.dart` |
 | `APPLE_BUNDLE_ID` | The app's bundle id |
 | `APPLE_ISSUER_ID`, `APPLE_KEY_ID` | App Store Connect → Users and Access → Integrations → In-App Purchase |

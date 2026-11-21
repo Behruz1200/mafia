@@ -68,6 +68,14 @@ void main() {
       expect(h.single.balanceAfter, 500);
     });
 
+    test('the welcome gift is given once', () async {
+      final [u] = users(1);
+      expect(await wallet.grantWelcome(u, 500), isTrue);
+      expect(await wallet.grantWelcome(u, 500), isFalse);
+      expect(await wallet.grantWelcome(houseAccount, 500), isFalse);
+      expect(await available(u), 500);
+    });
+
     test('stakes are all or nothing', () async {
       final ps = users(3);
       await fund(ps.take(2).toList(), 200);

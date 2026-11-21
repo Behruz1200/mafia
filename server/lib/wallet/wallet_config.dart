@@ -12,6 +12,14 @@ const defaultCoinPacks = [
   CoinPack(productId: 'coins_3000', coins: 3000, bonusCoins: 750),
 ];
 
+/// The stake the welcome gift is sized for. Rooms choose their own stake;
+/// this is only the planning number.
+const typicalStake = 100;
+
+/// Free coins for a new player: enough for 5 games at [typicalStake]
+/// (Behruz, 2026-11-21).
+const defaultWelcomeCoins = 5 * typicalStake;
+
 /// Whether purchases made with Apple's sandbox (TestFlight, App Review,
 /// Xcode builds) credit coins on this server. Sandbox purchases cost
 /// nothing, so a production server should only accept them while the app
@@ -42,6 +50,8 @@ class AppleConfig {
 ///
 /// - `DATABASE_URL` (shared with the rest of the server)
 /// - `HOUSE_CUT_PERCENT` (shared, default 10)
+/// - `WELCOME_COINS`: free coins every new player gets once (default
+///   [defaultWelcomeCoins]; 0 turns it off)
 /// - `COIN_PACKS`, optional: `coins_100:100:0,coins_500:500:50`
 ///   (product id : coins : bonus coins)
 /// - `APPLE_BUNDLE_ID`, `APPLE_ISSUER_ID`, `APPLE_KEY_ID` and
@@ -52,12 +62,14 @@ class WalletConfig {
   const WalletConfig({
     required this.databaseUrl,
     this.houseCutPercent = 10,
+    this.welcomeCoins = defaultWelcomeCoins,
     this.packs = defaultCoinPacks,
     this.apple,
   });
 
   final String databaseUrl;
   final int houseCutPercent;
+  final int welcomeCoins;
   final List<CoinPack> packs;
   final AppleConfig? apple;
 
@@ -78,9 +90,12 @@ class WalletConfig {
     if (cut < 0 || cut > 100) {
       throw StateError('HOUSE_CUT_PERCENT must be between 0 and 100');
     }
+    final welcome = int.parse(e['WELCOME_COINS'] ?? '$defaultWelcomeCoins');
+    if (welcome < 0) throw StateError('WELCOME_COINS must not be negative');
     return WalletConfig(
       databaseUrl: db,
       houseCutPercent: cut,
+      welcomeCoins: welcome,
       packs: parsePacks(e['COIN_PACKS']) ?? defaultCoinPacks,
       apple: _apple(e),
     );
