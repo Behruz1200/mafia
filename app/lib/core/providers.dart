@@ -2,6 +2,7 @@ import 'package:contracts/contracts.dart';
 import 'package:contracts/testing.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/call/data/livekit_call_controller.dart';
 import 'config.dart';
 
 // One provider per contract. Features read these, never each other's
@@ -33,9 +34,12 @@ final walletRepositoryProvider = Provider<WalletRepository>(
 );
 
 /// Stream 3 (video).
-final callControllerProvider = Provider<CallController>(
-  (ref) => AppConfig.useFakes ? FakeCallController() : _notYet('Video'),
-);
+final callControllerProvider = Provider<CallController>((ref) {
+  if (AppConfig.useFakes) return FakeCallController();
+  final call = LiveKitCallController();
+  ref.onDispose(call.dispose);
+  return call;
+});
 
 final sessionProvider = StreamProvider<AuthSession?>(
   (ref) => ref.watch(authRepositoryProvider).watchSession(),

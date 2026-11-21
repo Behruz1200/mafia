@@ -30,9 +30,9 @@ class GameScreen extends ConsumerWidget {
     };
     return Scaffold(
       appBar: AppBar(title: Text(phase)),
-      body: const Column(
+      body: Column(
         children: [
-          Expanded(child: CallView()),
+          Expanded(child: CallView(roomId: roomId)),
           // Stream 6: table, role card and action bar go here.
         ],
       ),

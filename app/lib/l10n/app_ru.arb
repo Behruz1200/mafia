@@ -16,5 +16,15 @@
   "phaseDay": "День",
   "phaseVoting": "Голосование",
   "camera": "Камера",
-  "microphone": "Микрофон"
+  "microphone": "Микрофон",
+  "callTurnCameraOn": "Включить камеру",
+  "callTurnCameraOff": "Выключить камеру",
+  "callTurnMicOn": "Включить микрофон",
+  "callTurnMicOff": "Выключить микрофон",
+  "callNightMuted": "Ночь: камеры и микрофоны выключены",
+  "callMafiaPrivate": "Звонок мафии: вас видит и слышит только ваша команда",
+  "callYouAreOut": "Вы выбыли. Можно смотреть, но не говорить.",
+  "callMediaBlocked": "Разрешите Mafia доступ к камере и микрофону в настройках телефона",
+  "callConnecting": "Подключение к видео…",
+  "callYou": "Вы"
 }
