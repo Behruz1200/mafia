@@ -6,6 +6,7 @@ import '../auth/auth_guard.dart';
 import '../auth/auth_module.dart';
 import '../auth/auth_players.dart';
 import '../call/call_module.dart';
+import '../rooms/ports.dart' show FreeMatchesOnlyWallet;
 import '../rooms/rooms_module.dart';
 import '../wallet/wallet_module.dart';
 import 'module.dart';
@@ -18,7 +19,13 @@ Handler buildApp({RoomsModule? rooms}) {
   // Other modules may use `auth.profileOf` for players' names and age.
   final auth = AuthModule();
   final roomsModule =
-      rooms ?? RoomsModule.fromEnvironment(players: AuthPlayers(auth));
+      rooms ??
+      RoomsModule.fromEnvironment(
+        players: AuthPlayers(auth),
+        // The real coin wallet when there is a database; free games otherwise.
+        wallet:
+            WalletServices.instance?.wallet ?? const FreeMatchesOnlyWallet(),
+      );
   final router = Router()
     ..get(ApiRoutes.health, (Request _) => json({'ok': true}))
     ..get(ApiRoutes.socket, roomsModule.socket);

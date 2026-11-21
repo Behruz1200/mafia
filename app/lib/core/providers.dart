@@ -7,15 +7,12 @@ import '../features/auth/data/http_auth_repository.dart';
 import '../features/call/data/livekit_call_controller.dart';
 import '../features/profile/data/http_profile_repository.dart';
 import '../features/rooms/data/http_room_repository.dart';
+import '../features/shop/data/wallet_providers.dart';
 import 'config.dart';
 
 // One provider per contract. Features read these, never each other's
-// classes. When a stream ships its real implementation it replaces the
-// `_notYet` branch of its own provider, nothing else.
-
-Never _notYet(String stream) => throw UnimplementedError(
-  '$stream has not shipped a real implementation yet; run with USE_FAKES=true',
-);
+// classes. With USE_FAKES=true every provider returns its fake; otherwise
+// each returns its stream's real implementation.
 
 /// Stream 5 (accounts).
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
@@ -57,7 +54,8 @@ final roomRepositoryProvider = Provider<RoomRepository>((ref) {
 
 /// Stream 4 (coins).
 final walletRepositoryProvider = Provider<WalletRepository>(
-  (ref) => AppConfig.useFakes ? FakeWalletRepository() : _notYet('Coins'),
+  (ref) =>
+      AppConfig.useFakes ? FakeWalletRepository() : createWalletRepository(ref),
 );
 
 /// Stream 3 (video).
