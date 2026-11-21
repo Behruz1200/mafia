@@ -46,6 +46,7 @@ void main() {
       userId: 'u',
       role: Role.detective,
       checks: {'x': Team.mafia},
+      detectiveChecks: {'y': false},
       allowedActions: ['nightCheck'],
     );
     expect(PrivatePlayerState.fromJson(wire(s.toJson())).toJson(), s.toJson());
@@ -60,6 +61,12 @@ void main() {
         NightHeal(actorId: 'user_1', targetId: 'user_0'),
       ],
       seed: 42,
+      engineData: const {
+        'lastHeal': 'user_0',
+        'checks': {
+          'user_2': {'user_0': 'mafia'},
+        },
+      },
     );
     expect(GameState.fromJson(wire(s.toJson())).toJson(), s.toJson());
   });
