@@ -2,6 +2,7 @@ import 'package:contracts/contracts.dart';
 import 'package:contracts/testing.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/rooms/data/http_room_repository.dart';
 import 'config.dart';
 
 // One provider per contract. Features read these, never each other's
@@ -23,9 +24,16 @@ final profileRepositoryProvider = Provider<ProfileRepository>(
 );
 
 /// Stream 2 (rooms and server).
-final roomRepositoryProvider = Provider<RoomRepository>(
-  (ref) => AppConfig.useFakes ? FakeRoomRepository() : _notYet('Rooms'),
-);
+final roomRepositoryProvider = Provider<RoomRepository>((ref) {
+  if (AppConfig.useFakes) return FakeRoomRepository();
+  final auth = ref.watch(authRepositoryProvider);
+  final repo = HttpRoomRepository(
+    baseUrl: Uri.parse(AppConfig.apiBaseUrl),
+    accessToken: () => auth.currentSession?.accessToken,
+  );
+  ref.onDispose(repo.close);
+  return repo;
+});
 
 /// Stream 4 (coins).
 final walletRepositoryProvider = Provider<WalletRepository>(
