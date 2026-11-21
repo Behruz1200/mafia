@@ -47,6 +47,7 @@ class UserProfile {
     this.countryCode,
     this.locale = 'uz',
     this.isAdult = false,
+    this.hasBirthDate = false,
   });
 
   final UserId userId;
@@ -61,6 +62,11 @@ class UserProfile {
 
   /// Passed the 18+ age gate. Required for staked matches.
   final bool isAdult;
+
+  /// The player has given their birth date (the age gate has been shown).
+  /// When false the app asks before a staked match. The date itself never
+  /// leaves the server.
+  final bool hasBirthDate;
   final DateTime createdAt;
 
   UserProfile copyWith({
@@ -74,6 +80,7 @@ class UserProfile {
     countryCode: countryCode,
     locale: locale ?? this.locale,
     isAdult: isAdult,
+    hasBirthDate: hasBirthDate,
     createdAt: createdAt,
   );
 
@@ -84,6 +91,7 @@ class UserProfile {
     'countryCode': countryCode,
     'locale': locale,
     'isAdult': isAdult,
+    'hasBirthDate': hasBirthDate,
     'createdAt': encodeTime(createdAt),
   };
 
@@ -94,6 +102,7 @@ class UserProfile {
     countryCode: j['countryCode'] as String?,
     locale: j['locale'] as String? ?? 'uz',
     isAdult: j['isAdult'] as bool? ?? false,
+    hasBirthDate: j['hasBirthDate'] as bool? ?? false,
     createdAt: decodeTime(j['createdAt']),
   );
 }

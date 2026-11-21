@@ -2,7 +2,9 @@ import 'package:contracts/contracts.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 
+import '../auth/auth_guard.dart';
 import '../auth/auth_module.dart';
+import '../auth/auth_players.dart';
 import '../call/call_module.dart';
 import '../rooms/ports.dart' show FreeMatchesOnlyWallet;
 import '../rooms/rooms_module.dart';
@@ -14,9 +16,12 @@ import 'module.dart';
 /// [rooms] is built from environment variables unless given (tests pass
 /// their own).
 Handler buildApp({RoomsModule? rooms}) {
+  // Other modules may use `auth.profileOf` for players' names and age.
+  final auth = AuthModule();
   final roomsModule =
       rooms ??
       RoomsModule.fromEnvironment(
+        players: AuthPlayers(auth),
         // The real coin wallet when there is a database; free games otherwise.
         wallet:
             WalletServices.instance?.wallet ?? const FreeMatchesOnlyWallet(),
@@ -26,7 +31,7 @@ Handler buildApp({RoomsModule? rooms}) {
     ..get(ApiRoutes.socket, roomsModule.socket);
 
   for (final ServerModule m in [
-    AuthModule(),
+    auth,
     roomsModule,
     CallModule(),
     WalletModule(),
@@ -34,5 +39,8 @@ Handler buildApp({RoomsModule? rooms}) {
     m.mount(router);
   }
 
-  return const Pipeline().addMiddleware(logRequests()).addHandler(router.call);
+  return const Pipeline()
+      .addMiddleware(logRequests())
+      .addMiddleware(authenticate())
+      .addHandler(router.call);
 }

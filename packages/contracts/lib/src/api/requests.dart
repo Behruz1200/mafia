@@ -47,6 +47,82 @@ class PhoneVerifyRequest {
   );
 }
 
+/// Body of `ApiRoutes.authApple`, from the Sign in with Apple sheet.
+class AppleSignInRequest {
+  const AppleSignInRequest({
+    required this.identityToken,
+    required this.rawNonce,
+    this.authorizationCode,
+    this.displayName,
+  });
+
+  /// The JWT Apple returns. The server checks its signature and audience.
+  final String identityToken;
+
+  /// The nonce the app made; Apple signed its SHA-256 into the token.
+  final String rawNonce;
+  final String? authorizationCode;
+
+  /// Apple only shares the name on the very first sign-in.
+  final String? displayName;
+
+  Json toJson() => {
+    'identityToken': identityToken,
+    'rawNonce': rawNonce,
+    'authorizationCode': authorizationCode,
+    'displayName': displayName,
+  };
+
+  factory AppleSignInRequest.fromJson(Json j) => AppleSignInRequest(
+    identityToken: j['identityToken']! as String,
+    rawNonce: j['rawNonce']! as String,
+    authorizationCode: j['authorizationCode'] as String?,
+    displayName: j['displayName'] as String?,
+  );
+}
+
+/// Body of `ApiRoutes.authRefresh` and `ApiRoutes.authSignOut`.
+class RefreshRequest {
+  const RefreshRequest({required this.refreshToken});
+  final String refreshToken;
+  Json toJson() => {'refreshToken': refreshToken};
+  factory RefreshRequest.fromJson(Json j) =>
+      RefreshRequest(refreshToken: j['refreshToken']! as String);
+}
+
+/// Body of `PATCH ApiRoutes.me`. Every field is optional; only the ones
+/// sent change. `birthDate` (`YYYY-MM-DD`) can be set once, for the age
+/// gate.
+class UpdateProfileRequest {
+  const UpdateProfileRequest({
+    this.displayName,
+    this.avatarUrl,
+    this.locale,
+    this.birthDate,
+  });
+
+  final String? displayName;
+  final String? avatarUrl;
+  final String? locale;
+  final DateTime? birthDate;
+
+  Json toJson() => {
+    if (displayName != null) 'displayName': displayName,
+    if (avatarUrl != null) 'avatarUrl': avatarUrl,
+    if (locale != null) 'locale': locale,
+    if (birthDate != null) 'birthDate': encodeDate(birthDate!),
+  };
+
+  factory UpdateProfileRequest.fromJson(Json j) => UpdateProfileRequest(
+    displayName: j['displayName'] as String?,
+    avatarUrl: j['avatarUrl'] as String?,
+    locale: j['locale'] as String?,
+    birthDate: j['birthDate'] == null
+        ? null
+        : DateTime.parse(j['birthDate']! as String),
+  );
+}
+
 /// Sent after the store reports a purchase. The server verifies it with the
 /// store before any coins are credited.
 class PurchaseRequest {
