@@ -11,6 +11,10 @@ import 'match_recorder.dart';
 import 'ports.dart';
 import 'room_error.dart';
 
+/// A match's full state after a change, and the state before it (null for
+/// the first match in a room).
+typedef MatchStateChange = ({GameState next, GameState? previous});
+
 /// Limits and timings for rooms. The defaults suit the first server (two
 /// cores, shared with another app); raise them with the hardware.
 class RoomsConfig {
@@ -100,6 +104,10 @@ class _LiveRoom {
 
   /// The last match's final public state, kept for late watchers.
   PublicGameState? lastPublic;
+
+  /// The last full state sent, kept across matches so listeners always get
+  /// the previous state (e.g. to close the old match's Mafia call).
+  GameState? lastState;
   DateTime lastActivity = DateTime.now();
   Timer? autoStart;
 
@@ -164,6 +172,7 @@ class RoomService implements RealtimeRooms {
   final _offline = <UserId, Timer>{};
   final _roomChanges = StreamController<Room>.broadcast();
   final _publicChanges = StreamController<PublicGameState>.broadcast();
+  final _matchStates = StreamController<MatchStateChange>.broadcast();
   late final StreamSubscription<Presence> _presenceSub;
   late final Timer _sweeper;
 
@@ -177,6 +186,11 @@ class RoomService implements RealtimeRooms {
   /// Every public state change of every match (phase, deaths, votes).
   Stream<PublicGameState> get publicChanges => _publicChanges.stream;
 
+  /// Every full match state change, roles included, with the state before
+  /// it. Server modules only (the video module mutes and moves players by
+  /// role); never forward it to an app.
+  Stream<MatchStateChange> get matchStates => _matchStates.stream;
+
   Room? room(RoomId id) => _rooms[id]?.toRoom();
   bool isMember(RoomId id, UserId u) => _rooms[id]?.has(u) ?? false;
   PublicGameState? publicState(RoomId id) {
@@ -189,6 +203,14 @@ class RoomService implements RealtimeRooms {
   /// video module puts Mafia in their night call). Never send it to anyone
   /// but that player.
   Role? roleOf(RoomId id, UserId u) => _rooms[id]?.match?.state.roles[u];
+
+  /// The name a member shows at the table, or null if not a member.
+  String? displayNameOf(RoomId id, UserId u) {
+    for (final m in _rooms[id]?.members ?? const <_Member>[]) {
+      if (m.userId == u) return m.displayName;
+    }
+    return null;
+  }
 
   int get openRooms => _rooms.length;
 
@@ -554,6 +576,15 @@ class RoomService implements RealtimeRooms {
       }
     }
     _publicChanges.add(public);
+    final full = GameState(
+      public: public,
+      roles: m.state.roles,
+      settings: m.state.settings,
+      pendingNightActions: m.state.pendingNightActions,
+      seed: m.state.seed,
+    );
+    _matchStates.add((next: full, previous: r.lastState));
+    r.lastState = full;
   }
 
   PrivatePlayerState? _privateFor(_Match m, UserId u) {
