@@ -6,7 +6,7 @@ Full plan: https://claude.ai/artifact/PjXkehkN4SfEzv3pRuWJHi
  iPhone / Android app (Flutter)
    │  HTTPS (REST)  +  WebSocket (live game state)      LiveKit (video)
    ▼                                                    ▼
- ┌───────────────── our server in Uzbekistan (Docker) ─────────────────┐
+ ┌──────────── our server in Uzbekistan (systemd, no Docker) ──────────┐
  │  Dart game server  ── runs mafia_engine, wallet, auth               │
  │  PostgreSQL        ── profiles, rooms, append-only coin ledger      │
  │  LiveKit           ── video rooms; server mutes players at night    │

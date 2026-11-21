@@ -16,6 +16,8 @@ coverage/
 **/GoogleService-Info.plist
 app/lib/firebase_options*.dart
 firebase/.firebaserc.local
+deploy/**/*.env
+!deploy/**/*.env.example
 *.keystore
 *.jks
 key.properties
