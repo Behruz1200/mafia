@@ -43,8 +43,34 @@ jobs:
         working-directory: app
         run: flutter analyze --fatal-infos && flutter test
 
+  server-binary:
+    name: Server binary (production, Ubuntu 24.04)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.50.1
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Compile
+        run: |
+          mkdir -p out
+          dart compile exe server/bin/server.dart -o out/server
+          cp -r server/migrations out/
+      - name: Smoke test
+        run: |
+          HOST=127.0.0.1 PORT=8080 ./out/server &
+          for i in $(seq 1 20); do curl -fs localhost:8080/healthz && exit 0; sleep 1; done
+          exit 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mafia-server-linux-x64
+          path: out/
+
   server-image:
-    name: Server Docker image
+    name: Server Docker image (local dev)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

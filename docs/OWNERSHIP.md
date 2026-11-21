@@ -9,7 +9,7 @@ stream's agreement.
 | 0 | Foundation | repo root, `packages/contracts`, `app/lib/core`, `app/lib/app.dart`, `server/lib/src`, `deploy/`, `.github/` |
 | 1 | Game engine | `packages/mafia_engine` |
 | 2 | Rooms and server | `server/lib/rooms`, `server/lib/realtime`, the app's real `RoomRepository` |
-| 3 | Video | `app/lib/features/call`, `server/lib/call`, `deploy/livekit.yaml` |
+| 3 | Video | `app/lib/features/call`, `server/lib/call`, `deploy/*/livekit.yaml` |
 | 4 | Coins | `app/lib/features/shop`, `server/lib/wallet`, the app's real `WalletRepository` |
 | 5 | Accounts and safety | `app/lib/features/auth`, `app/lib/features/profile`, `server/lib/auth` |
 | 6 | Game UI | `app/lib/features/lobby`, `app/lib/features/game` |

@@ -1,0 +1,15 @@
+# LiveKit on the shared production server. Keys come from LIVEKIT_KEYS in
+# /etc/mafia/livekit.env ("<key>: <secret>").
+port: 7880
+# Signalling only on localhost; nginx terminates TLS in front of it.
+bind_addresses:
+  - 127.0.0.1
+rtc:
+  # Media must be reachable from phones: these are the only new ports.
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50100
+  use_external_ip: true
+room:
+  max_participants: 16
+  empty_timeout: 300
