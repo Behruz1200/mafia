@@ -1,6 +1,7 @@
 # Developing
 
-Needs Flutter 3.50 (stable), which includes Dart 3.14. Docker for the server.
+Needs Flutter 3.50 (stable), which includes Dart 3.14. Docker only for the
+local server stack; production runs without Docker (deploy/README.md).
 
 ```sh
 flutter pub get                 # once, at the repo root (pub workspace)
@@ -11,9 +12,9 @@ cd app && flutter run
 # App against a real server
 flutter run --dart-define=USE_FAKES=false --dart-define=API_BASE_URL=https://api.example.uz
 
-# Server stack: game server + PostgreSQL + LiveKit
-cp deploy/.env.example deploy/.env    # fill in values
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env up --build
+# Local server stack: game server + PostgreSQL + LiveKit (Docker, dev only)
+cp deploy/local/.env.example deploy/local/.env    # fill in values
+docker compose -f deploy/local/docker-compose.yml --env-file deploy/local/.env up --build
 
 # Tests
 (cd packages/contracts && dart test)

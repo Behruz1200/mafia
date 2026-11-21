@@ -1,0 +1,28 @@
+# Self-hosted LiveKit (video) as a plain systemd service. No Docker.
+# Install: /etc/systemd/system/mafia-livekit.service
+[Unit]
+Description=Mafia video (LiveKit)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=mafia
+Group=mafia
+EnvironmentFile=/etc/mafia/livekit.env
+ExecStart=/opt/mafia/livekit/livekit-server --config /etc/mafia/livekit.yaml
+Restart=on-failure
+RestartSec=3
+
+# Video is the heaviest part; cap it so the store app keeps its share.
+MemoryHigh=768M
+MemoryMax=1G
+CPUWeight=50
+LimitNOFILE=65536
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
