@@ -29,7 +29,14 @@ abstract interface class AuthRepository {
 /// Owned by stream 5. Profiles live only on the server in Uzbekistan.
 abstract interface class ProfileRepository {
   Stream<UserProfile?> watchMyProfile();
+
+  /// Sends the name, avatar and language from [profile]. Country, age and
+  /// ids are decided by the server and ignored here.
   Future<UserProfile> updateMyProfile(UserProfile profile);
+
+  /// Age gate: the player's birth date, given once. The server works out
+  /// `isAdult` from it and keeps the date to itself.
+  Future<UserProfile> setBirthDate(DateTime birthDate);
 }
 
 /// Owned by stream 2 (rooms and server).
