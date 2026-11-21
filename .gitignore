@@ -1,0 +1,21 @@
+.dart_tool/
+.packages
+build/
+coverage/
+.DS_Store
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+
+# Secrets and per-developer config never go in git.
+.env
+.env.*
+!.env.example
+**/google-services.json
+**/GoogleService-Info.plist
+app/lib/firebase_options*.dart
+firebase/.firebaserc.local
+*.keystore
+*.jks
+key.properties

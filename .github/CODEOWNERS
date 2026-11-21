@@ -1,0 +1,4 @@
+# Contract changes need the foundation owner's review (see docs/CONTRACTS.md).
+/packages/contracts/   @Behruz1200
+/.github/              @Behruz1200
+/deploy/               @Behruz1200

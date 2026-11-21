@@ -1,0 +1,17 @@
+name: mafia_engine
+description: >-
+  The rules of Mafia as a pure Dart state machine. No network, no clock,
+  no Flutter. Implements GameEngine from package:contracts.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.14.0
+
+dependencies:
+  contracts: any
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

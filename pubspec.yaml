@@ -1,0 +1,16 @@
+# Root of the Dart pub workspace. Run `flutter pub get` here once; every
+# package below shares one lockfile and one resolved set of dependencies.
+name: mafia_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.14.0
+
+workspace:
+  - app
+  - packages/contracts
+  - packages/mafia_engine
+  - server
+
+dev_dependencies:
+  lints: ^6.0.0

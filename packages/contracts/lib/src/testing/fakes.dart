@@ -1,0 +1,208 @@
+import 'dart:async';
+
+import '../models/account.dart';
+import '../models/call.dart';
+import '../models/game_action.dart';
+import '../models/game_state.dart';
+import '../models/ids.dart';
+import '../models/match_result.dart';
+import '../models/room.dart';
+import '../models/wallet.dart';
+import '../ports/repositories.dart';
+import 'fixtures.dart';
+
+/// Signed in as `user_0` unless [signedIn] is false. Any phone code works.
+class FakeAuthRepository implements AuthRepository {
+  FakeAuthRepository({bool signedIn = true})
+    : _session = signedIn ? _fakeSession() : null;
+
+  AuthSession? _session;
+  final _ctrl = StreamController<AuthSession?>.broadcast();
+
+  static AuthSession _fakeSession() => AuthSession(
+    userId: 'user_0',
+    accessToken: 'fake-access',
+    refreshToken: 'fake-refresh',
+    expiresAt: DateTime.utc(2100),
+  );
+
+  void _set(AuthSession? s) => _ctrl.add(_session = s);
+
+  @override
+  AuthSession? get currentSession => _session;
+
+  @override
+  Stream<AuthSession?> watchSession() async* {
+    yield _session;
+    yield* _ctrl.stream;
+  }
+
+  @override
+  Future<void> startPhoneSignIn(String phoneE164) async {}
+
+  @override
+  Future<AuthSession> verifyPhoneCode(String phoneE164, String code) async {
+    _set(_fakeSession());
+    return _session!;
+  }
+
+  @override
+  Future<AuthSession> signInWithApple() =>
+      verifyPhoneCode('+998000000000', '0000');
+
+  @override
+  Future<void> signOut() async => _set(null);
+
+  @override
+  Future<void> deleteAccount() async => _set(null);
+}
+
+class FakeProfileRepository implements ProfileRepository {
+  FakeProfileRepository([UserProfile? profile])
+    : _profile =
+          profile ??
+          UserProfile(
+            userId: 'user_0',
+            displayName: 'Aziza',
+            countryCode: 'UZ',
+            isAdult: true,
+            createdAt: fixtureNow,
+          );
+
+  UserProfile? _profile;
+  final _ctrl = StreamController<UserProfile?>.broadcast();
+
+  @override
+  Stream<UserProfile?> watchMyProfile() async* {
+    yield _profile;
+    yield* _ctrl.stream;
+  }
+
+  @override
+  Future<UserProfile> updateMyProfile(UserProfile profile) async {
+    _ctrl.add(_profile = profile);
+    return profile;
+  }
+}
+
+/// A scriptable room. Tests and the UI's mock mode push state with
+/// [emitRoom], [emitPublic], [emitPrivate] and [emitMatchEnd]; every action
+/// sent is recorded in [sent].
+class FakeRoomRepository implements RoomRepository {
+  FakeRoomRepository({Room? room}) : room = room ?? sampleRoom();
+
+  Room room;
+  final sent = <GameAction>[];
+
+  final _room = StreamController<Room>.broadcast();
+  final _public = StreamController<PublicGameState>.broadcast();
+  final _private = StreamController<PrivatePlayerState>.broadcast();
+  final _end = StreamController<MatchResult>.broadcast();
+  PublicGameState? _lastPublic;
+  PrivatePlayerState? _lastPrivate;
+
+  void emitRoom(Room r) => _room.add(room = r);
+  void emitPublic(PublicGameState s) => _public.add(_lastPublic = s);
+  void emitPrivate(PrivatePlayerState s) => _private.add(_lastPrivate = s);
+  void emitMatchEnd(MatchResult r) => _end.add(r);
+
+  @override
+  Future<Room> createRoom(RoomSettings settings) async => room;
+  @override
+  Future<Room> joinByCode(InviteCode code) async => room;
+  @override
+  Future<Room> quickMatch() async => room;
+  @override
+  Future<void> leave(RoomId roomId) async {}
+
+  @override
+  Stream<Room> watchRoom(RoomId roomId) async* {
+    yield room;
+    yield* _room.stream;
+  }
+
+  @override
+  Stream<PublicGameState> watchPublicState(RoomId roomId) async* {
+    if (_lastPublic != null) yield _lastPublic!;
+    yield* _public.stream;
+  }
+
+  @override
+  Stream<PrivatePlayerState> watchMyState(RoomId roomId) async* {
+    if (_lastPrivate != null) yield _lastPrivate!;
+    yield* _private.stream;
+  }
+
+  @override
+  Stream<MatchResult> watchMatchEnd(RoomId roomId) => _end.stream;
+
+  @override
+  Future<void> send(RoomId roomId, GameAction action) async => sent.add(action);
+}
+
+/// Starts with 1,000 coins. [buy] credits instantly.
+class FakeWalletRepository implements WalletRepository {
+  FakeWalletRepository({int coins = 1000})
+    : _balance = WalletBalance(userId: 'user_0', available: coins);
+
+  WalletBalance _balance;
+  final _ctrl = StreamController<WalletBalance>.broadcast();
+
+  static const packs = [
+    CoinPack(productId: 'coins_100', coins: 100),
+    CoinPack(productId: 'coins_500', coins: 500, bonusCoins: 50),
+    CoinPack(productId: 'coins_1200', coins: 1200, bonusCoins: 200),
+  ];
+
+  @override
+  Stream<WalletBalance> watchBalance() async* {
+    yield _balance;
+    yield* _ctrl.stream;
+  }
+
+  @override
+  Future<List<LedgerEntry>> history({int limit = 50}) async => const [];
+
+  @override
+  Future<List<CoinPack>> coinPacks() async => packs;
+
+  @override
+  Future<WalletBalance> buy(CoinPack pack) async {
+    _balance = WalletBalance(
+      userId: _balance.userId,
+      available: _balance.available + pack.coins + pack.bonusCoins,
+      inEscrow: _balance.inEscrow,
+    );
+    _ctrl.add(_balance);
+    return _balance;
+  }
+}
+
+/// Shows the table's players as call participants, cameras off.
+class FakeCallController implements CallController {
+  final _ctrl = StreamController<List<CallParticipant>>.broadcast();
+  var _people = <CallParticipant>[];
+  bool camera = false;
+  bool mic = false;
+
+  @override
+  Stream<List<CallParticipant>> watchParticipants() async* {
+    yield _people;
+    yield* _ctrl.stream;
+  }
+
+  @override
+  Future<void> join(CallGrant grant) async {
+    _people = [
+      for (final p in samplePlayers()) CallParticipant(userId: p.userId),
+    ];
+    _ctrl.add(_people);
+  }
+
+  @override
+  Future<void> setCamera({required bool on}) async => camera = on;
+  @override
+  Future<void> setMic({required bool on}) async => mic = on;
+  @override
+  Future<void> leave() async => _ctrl.add(_people = []);
+}
