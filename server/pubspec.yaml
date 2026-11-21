@@ -12,6 +12,7 @@ environment:
 dependencies:
   contracts: any
   crypto: ^3.0.8
+  http: ^1.6.0
   mafia_engine: any
   postgres: ^3.4.0
   shelf: ^1.4.0
