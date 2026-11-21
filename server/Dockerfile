@@ -13,11 +13,13 @@ RUN dart pub get
 
 COPY packages packages
 COPY server server
-RUN dart pub get --offline && dart compile exe server/bin/server.dart -o /server
+RUN dart pub get --offline && dart compile exe server/bin/server.dart -o /server \
+    && dart compile exe server/bin/migrate.dart -o /migrate
 
 FROM scratch
 COPY --from=build /runtime/ /
 COPY --from=build /server /app/server
+COPY --from=build /migrate /app/migrate
 COPY server/migrations /app/migrations
 EXPOSE 8080
 CMD ["/app/server"]

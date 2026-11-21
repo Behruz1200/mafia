@@ -19,7 +19,7 @@ docker compose -f deploy/local/docker-compose.yml --env-file deploy/local/.env u
 # Tests
 (cd packages/contracts && dart test)
 (cd packages/mafia_engine && dart test)
-(cd server && dart test)
+(cd server && dart test)        # set TEST_DATABASE_URL to also run the database tests
 (cd app && flutter test)
 ```
 

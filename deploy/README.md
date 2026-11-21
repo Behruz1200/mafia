@@ -24,7 +24,9 @@ can be undone by removing what it added.
    (`postgres.sql`). The store app's databases are not touched.
 3. The game server: one native binary (built by CI, no Dart SDK needed on
    the server), run by `systemd/mafia-server.service`, listening on
-   127.0.0.1:8080 only. Memory capped at 512 MB.
+   127.0.0.1:8080 only. Memory capped at 512 MB. Before each start,
+   systemd runs the `migrate` binary next to it, which applies any new
+   file in `migrations/` once.
 4. LiveKit: the official single binary, run by
    `systemd/mafia-livekit.service`, signalling on 127.0.0.1:7880 only.
    Memory capped at 1 GB.

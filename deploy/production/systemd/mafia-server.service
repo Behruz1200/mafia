@@ -9,6 +9,8 @@ Wants=network-online.target
 User=mafia
 Group=mafia
 EnvironmentFile=/etc/mafia/server.env
+# Bring the database up to date first (each migration runs once).
+ExecStartPre=/opt/mafia/server/migrate
 ExecStart=/opt/mafia/server/server
 WorkingDirectory=/opt/mafia/server
 Restart=on-failure

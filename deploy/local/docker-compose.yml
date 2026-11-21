@@ -11,9 +11,21 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgres://mafia:${POSTGRES_PASSWORD}@postgres:5432/mafia
+      DATABASE_URL: postgres://mafia:${POSTGRES_PASSWORD}@postgres:5432/mafia?sslmode=disable
     ports:
       - "8080:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Applies server/migrations once, then exits; the server waits for it.
+  migrate:
+    build:
+      context: ../..
+      dockerfile: server/Dockerfile
+    command: ["/app/migrate"]
+    environment:
+      DATABASE_URL: postgres://mafia:${POSTGRES_PASSWORD}@postgres:5432/mafia?sslmode=disable
     depends_on:
       postgres:
         condition: service_healthy
