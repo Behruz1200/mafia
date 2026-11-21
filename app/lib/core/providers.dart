@@ -2,7 +2,10 @@ import 'package:contracts/contracts.dart';
 import 'package:contracts/testing.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/auth/data/api.dart';
+import '../features/auth/data/http_auth_repository.dart';
 import '../features/call/data/livekit_call_controller.dart';
+import '../features/profile/data/http_profile_repository.dart';
 import '../features/rooms/data/http_room_repository.dart';
 import 'config.dart';
 
@@ -15,13 +18,29 @@ Never _notYet(String stream) => throw UnimplementedError(
 );
 
 /// Stream 5 (accounts).
-final authRepositoryProvider = Provider<AuthRepository>(
-  (ref) => AppConfig.useFakes ? FakeAuthRepository() : _notYet('Accounts'),
-);
+final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  if (AppConfig.useFakes) return FakeAuthRepository();
+  final repo = HttpAuthRepository(
+    api: AccountsApi(baseUrl: AppConfig.apiBaseUrl),
+  );
+  ref.onDispose(repo.dispose);
+  return repo;
+});
 
 /// Stream 5 (accounts).
-final profileRepositoryProvider = Provider<ProfileRepository>(
-  (ref) => AppConfig.useFakes ? FakeProfileRepository() : _notYet('Accounts'),
+final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
+  if (AppConfig.useFakes) return FakeProfileRepository();
+  final repo = HttpProfileRepository(
+    api: AccountsApi(baseUrl: AppConfig.apiBaseUrl),
+    auth: ref.watch(authRepositoryProvider) as HttpAuthRepository,
+  );
+  ref.onDispose(repo.dispose);
+  return repo;
+});
+
+/// Stream 5 (accounts). The signed-in player's profile.
+final myProfileProvider = StreamProvider<UserProfile?>(
+  (ref) => ref.watch(profileRepositoryProvider).watchMyProfile(),
 );
 
 /// Stream 2 (rooms and server).

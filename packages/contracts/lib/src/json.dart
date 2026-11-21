@@ -10,6 +10,12 @@ typedef Json = Map<String, Object?>;
 /// Timestamps travel as ISO-8601 UTC strings.
 String encodeTime(DateTime t) => t.toUtc().toIso8601String();
 DateTime decodeTime(Object? v) => DateTime.parse(v! as String).toUtc();
+
+/// Calendar dates (no time) travel as `YYYY-MM-DD`.
+String encodeDate(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-'
+    '${d.month.toString().padLeft(2, '0')}-'
+    '${d.day.toString().padLeft(2, '0')}';
 DateTime? decodeTimeOrNull(Object? v) => v == null ? null : decodeTime(v);
 
 T decodeEnum<T extends Enum>(List<T> values, Object? name) =>
