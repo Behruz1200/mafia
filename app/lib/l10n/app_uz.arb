@@ -1,0 +1,20 @@
+{
+  "@@locale": "uz",
+  "appTitle": "Mafia",
+  "signInTitle": "Kirish",
+  "signInWithPhone": "Telefon raqam orqali kirish",
+  "signInWithApple": "Apple orqali kirish",
+  "lobbyTitle": "O‘yinlar",
+  "createRoom": "Xona yaratish",
+  "joinRoom": "Kod bilan qo‘shilish",
+  "quickMatch": "Tezkor o‘yin",
+  "shopTitle": "Do‘kon",
+  "profileTitle": "Profil",
+  "coins": "{count} tanga",
+  "comingSoon": "Tez orada",
+  "phaseNight": "Tun",
+  "phaseDay": "Kun",
+  "phaseVoting": "Ovoz berish",
+  "camera": "Kamera",
+  "microphone": "Mikrofon"
+}

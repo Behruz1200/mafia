@@ -1,0 +1,20 @@
+{
+  "@@locale": "ru",
+  "appTitle": "Мафия",
+  "signInTitle": "Вход",
+  "signInWithPhone": "Войти по номеру телефона",
+  "signInWithApple": "Войти через Apple",
+  "lobbyTitle": "Игры",
+  "createRoom": "Создать комнату",
+  "joinRoom": "Войти по коду",
+  "quickMatch": "Быстрая игра",
+  "shopTitle": "Магазин",
+  "profileTitle": "Профиль",
+  "coins": "{count, plural, one{{count} монета} few{{count} монеты} many{{count} монет} other{{count} монеты}}",
+  "comingSoon": "Скоро",
+  "phaseNight": "Ночь",
+  "phaseDay": "День",
+  "phaseVoting": "Голосование",
+  "camera": "Камера",
+  "microphone": "Микрофон"
+}

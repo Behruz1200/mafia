@@ -1,0 +1,50 @@
+# Everything that runs on our server in Uzbekistan, in one place.
+# Local:       docker compose -f deploy/docker-compose.yml --env-file deploy/.env up --build
+# Production:  same file, real values in deploy/.env on the server (never in git).
+name: mafia
+
+services:
+  server:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://mafia:${POSTGRES_PASSWORD}@postgres:5432/mafia
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mafia
+      POSTGRES_DB: mafia
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mafia"]
+      interval: 5s
+      retries: 10
+
+  # Self-hosted video. Needs the UDP range open on the server's firewall.
+  livekit:
+    image: livekit/livekit-server:v1.9
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50100:50000-50100/udp"
+
+volumes:
+  pgdata:

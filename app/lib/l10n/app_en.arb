@@ -1,0 +1,21 @@
+{
+  "@@locale": "en",
+  "appTitle": "Mafia",
+  "signInTitle": "Sign in",
+  "signInWithPhone": "Sign in with phone number",
+  "signInWithApple": "Sign in with Apple",
+  "lobbyTitle": "Games",
+  "createRoom": "Create room",
+  "joinRoom": "Join with code",
+  "quickMatch": "Quick match",
+  "shopTitle": "Shop",
+  "profileTitle": "Profile",
+  "coins": "{count, plural, one{{count} coin} other{{count} coins}}",
+  "@coins": {"placeholders": {"count": {"type": "int"}}},
+  "comingSoon": "Coming soon",
+  "phaseNight": "Night",
+  "phaseDay": "Day",
+  "phaseVoting": "Voting",
+  "camera": "Camera",
+  "microphone": "Microphone"
+}
