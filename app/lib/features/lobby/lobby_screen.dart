@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:contracts/contracts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -31,7 +33,9 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     setState(() => _busy = true);
     try {
       final room = await action();
-      if (mounted) await context.push(Routes.room(room.id));
+      // Not awaited: the room screen leaves with `go(lobby)`, which never
+      // completes this push, and awaiting it kept the lobby busy for good.
+      if (mounted) unawaited(context.push(Routes.room(room.id)));
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
