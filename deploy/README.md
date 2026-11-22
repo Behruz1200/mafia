@@ -30,13 +30,35 @@ can be undone by removing what it added.
 4. LiveKit: the official single binary, run by
    `systemd/mafia-livekit.service`, signalling on 127.0.0.1:7880 only.
    Memory capped at 1 GB.
-5. nginx: one new file (`nginx/mafia.conf`) for two new hostnames,
-   `api.` and `video.`, with certbot certificates.
+5. nginx: one new file (`nginx/mafia.conf`, installed as
+   `zz-mafia.conf`) for two new hostnames, `api.` and `video.`. The
+   certificate comes from certbot's webroot mode, so certbot never edits
+   the store's nginx file: first enable only the port 80 block, then
+   `certbot certonly --webroot -w /var/www/mafia-acme --cert-name mafia
+   -d api.<domain> -d video.<domain> --deploy-hook "systemctl reload nginx"`,
+   then the full file. Always `nginx -t` and `systemctl reload nginx`,
+   never a restart.
 6. ufw: the only new openings are for video media,
    `ufw allow 7881/tcp` and `ufw allow 50000:50100/udp`.
 
 Undo: `systemctl disable --now mafia-server mafia-livekit`, remove the
-nginx file and the two ufw rules, `DROP DATABASE mafia; DROP ROLE mafia;`.
+nginx file and the two ufw rules, `certbot delete --cert-name mafia`,
+`DROP DATABASE mafia; DROP ROLE mafia;`.
+
+## Signing in before Eskiz SMS is set up
+
+Keep `SMS_PROVIDER=console` and list a few test numbers with fixed codes in
+`AUTH_TEST_PHONES` (`+998900000001=<6 digits>,...`). No SMS is sent to them.
+Real numbers also work: their code is printed to `journalctl -u
+mafia-server`. Switch to `SMS_PROVIDER=eskiz` before real players join.
+
+## App builds against this server
+
+    flutter build ios --release --config-only \
+      --dart-define=USE_FAKES=false --dart-define=API_BASE_URL=https://api.<domain>
+
+then build and install with Xcode as usual. A plain build without these
+defines uses pretend data.
 
 ## Capacity (rough estimate)
 
