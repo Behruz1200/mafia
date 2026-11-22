@@ -7,33 +7,44 @@ import '../auth/auth_module.dart';
 import '../auth/auth_players.dart';
 import '../call/call_module.dart';
 import '../rooms/ports.dart' show FreeMatchesOnlyWallet;
+import '../rooms/call_link.dart';
 import '../rooms/rooms_module.dart';
 import '../wallet/wallet_module.dart';
 import 'module.dart';
 
+/// The rooms module wired to the real parts: profiles from [auth], the
+/// coin wallet when there is a database (free games otherwise).
+RoomsModule defaultRooms(AuthModule auth) => RoomsModule.fromEnvironment(
+  players: AuthPlayers(auth),
+  wallet: WalletServices.instance?.wallet ?? const FreeMatchesOnlyWallet(),
+);
+
 /// Builds the whole HTTP app. Each stream registers its module here once.
 ///
-/// [rooms] is built from environment variables unless given (tests pass
-/// their own).
-Handler buildApp({RoomsModule? rooms}) {
+/// [rooms] defaults to [defaultRooms]; tests pass their own. Pass the same
+/// [auth] the rooms module was built with.
+Handler buildApp({RoomsModule? rooms, AuthModule? auth}) {
   // Other modules may use `auth.profileOf` for players' names and age.
-  final auth = AuthModule();
-  final roomsModule =
-      rooms ??
-      RoomsModule.fromEnvironment(
-        players: AuthPlayers(auth),
-        // The real coin wallet when there is a database; free games otherwise.
-        wallet:
-            WalletServices.instance?.wallet ?? const FreeMatchesOnlyWallet(),
-      );
+  final authModule = auth ?? AuthModule();
+  final roomsModule = rooms ?? defaultRooms(authModule);
+  // Video: LiveKit tokens for room members, and mutes that follow the game.
+  final callService = CallModule().service;
+  final call = CallModule(
+    service: callService,
+    directory: RoomsCallLink(
+      rooms: roomsModule.service,
+      hub: roomsModule.hub,
+      call: callService,
+    ),
+  );
   final router = Router()
     ..get(ApiRoutes.health, (Request _) => json({'ok': true}))
     ..get(ApiRoutes.socket, roomsModule.socket);
 
   for (final ServerModule m in [
-    auth,
+    authModule,
     roomsModule,
-    CallModule(),
+    call,
     WalletModule(),
   ]) {
     m.mount(router);
