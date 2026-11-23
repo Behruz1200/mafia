@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../core/last_room.dart';
 import '../../core/routes.dart';
 import '../../l10n/generated/app_localizations.dart';
 import 'game_providers.dart';
@@ -30,6 +31,13 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   /// room again.
   MatchId? _dismissedMatch;
 
+  @override
+  void initState() {
+    super.initState();
+    // Remember the room, so a reload or restart brings the player back.
+    ref.read(lastRoomStoreProvider).write(widget.roomId);
+  }
+
   Future<void> _leave() async {
     final t = AppLocalizations.of(context);
     final phase = ref.read(publicStateProvider(widget.roomId)).value?.phase;
@@ -56,6 +64,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       if (ok != true) return;
     }
     await ref.read(gameActionsProvider(widget.roomId)).leave();
+    await ref.read(lastRoomStoreProvider).write(null);
     if (mounted) context.go(Routes.lobby);
   }
 

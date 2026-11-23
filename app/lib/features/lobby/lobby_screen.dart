@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../core/last_room.dart';
 import '../../core/providers.dart';
 import '../../core/routes.dart';
 import '../../core/theme.dart';
@@ -29,15 +30,56 @@ class LobbyScreen extends ConsumerStatefulWidget {
 class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   bool _busy = false;
 
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_resume());
+  }
+
+  /// Takes the player back into the room they last had open if they are
+  /// still seated there (after a reload, an app restart or in a second
+  /// browser tab). True if it did.
+  Future<bool> _resume() async {
+    final store = ref.read(lastRoomStoreProvider);
+    final id = await store.read();
+    if (id == null || !mounted) return false;
+    final me = ref.read(authRepositoryProvider).currentSession?.userId;
+    Room? room;
+    try {
+      room = await ref
+          .read(roomRepositoryProvider)
+          .watchRoom(id)
+          .first
+          .timeout(const Duration(seconds: 5));
+    } on Object {
+      room = null; // gone, or not ours any more
+    }
+    final seated =
+        room != null &&
+        room.status != RoomStatus.closed &&
+        (me == null || room.memberIds.contains(me));
+    if (!seated) {
+      await store.write(null);
+      return false;
+    }
+    if (mounted) unawaited(context.push(Routes.room(id)));
+    return mounted;
+  }
+
+  void _go(Room room) =>
+      // Not awaited: the room screen leaves with `go(lobby)`, which never
+      // completes this push, and awaiting it kept the lobby busy for good.
+      unawaited(context.push(Routes.room(room.id)));
+
   Future<void> _open(Future<Room> Function() action) async {
     if (_busy) return;
     setState(() => _busy = true);
     try {
       final room = await action();
-      // Not awaited: the room screen leaves with `go(lobby)`, which never
-      // completes this push, and awaiting it kept the lobby busy for good.
-      if (mounted) unawaited(context.push(Routes.room(room.id)));
+      if (mounted) _go(room);
     } catch (_) {
+      // Most likely still seated in a running game: go back to it.
+      if (await _resume()) return;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(AppLocalizations.of(context).lobbyError)),
