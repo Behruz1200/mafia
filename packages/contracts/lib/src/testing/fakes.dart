@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../models/account.dart';
 import '../models/call.dart';
+import '../models/chat.dart';
 import '../models/game_action.dart';
 import '../models/game_state.dart';
 import '../models/ids.dart';
@@ -128,6 +129,17 @@ class FakeRoomRepository implements RoomRepository {
   final _end = StreamController<MatchResult>.broadcast();
   PublicGameState? _lastPublic;
   PrivatePlayerState? _lastPrivate;
+  final chat = <ChatMessage>[];
+  final _chat = StreamController<List<ChatMessage>>.broadcast();
+  var _chatSeq = 0;
+
+  final _reactions = StreamController<ChatReaction>.broadcast();
+
+  /// Shows a reaction as if the server had sent it.
+  void emitReaction(ChatReaction r) => _reactions.add(r);
+
+  /// Shows a message as if the server had sent it.
+  void emitChat(ChatMessage m) => _chat.add(List.unmodifiable(chat..add(m)));
 
   void emitRoom(Room r) => _room.add(room = r);
   void emitPublic(PublicGameState s) => _public.add(_lastPublic = s);
@@ -166,6 +178,48 @@ class FakeRoomRepository implements RoomRepository {
 
   @override
   Future<void> send(RoomId roomId, GameAction action) async => sent.add(action);
+
+  @override
+  Stream<List<ChatMessage>> watchChat(RoomId roomId) async* {
+    yield List.unmodifiable(chat);
+    yield* _chat.stream;
+  }
+
+  @override
+  Stream<ChatReaction> watchReactions(RoomId roomId) => _reactions.stream;
+
+  /// Echoes it back on `user_0`'s seat, like the server.
+  @override
+  Future<void> sendReaction(RoomId roomId, String emoji) async {
+    if (!ChatRules.reactions.contains(emoji)) return;
+    emitReaction(
+      ChatReaction(
+        roomId: roomId,
+        senderId: 'user_0',
+        emoji: emoji,
+        channel: ChatChannel.table,
+        sentAt: DateTime.now().toUtc(),
+      ),
+    );
+  }
+
+  /// Echoes the message back on the table as `user_0`, like the server.
+  @override
+  Future<void> sendChat(RoomId roomId, String text) async {
+    final clean = ChatRules.clean(text);
+    if (clean.isEmpty) return;
+    emitChat(
+      ChatMessage(
+        id: 'chat_${_chatSeq++}',
+        roomId: roomId,
+        senderId: 'user_0',
+        senderName: 'You',
+        text: clean,
+        channel: ChatChannel.table,
+        sentAt: DateTime.now().toUtc(),
+      ),
+    );
+  }
 }
 
 /// Starts with 1,000 coins. [buy] credits instantly.

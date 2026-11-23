@@ -46,6 +46,8 @@ class CallAccess {
 /// - Night: nobody talks at the table, not even the Mafia. Everyone stays
 ///   connected, so the town cannot tell who slipped away.
 /// - Day and voting: alive players talk, dead players only watch.
+/// - Last word: only the player just eliminated talks; everyone else,
+///   living or dead, listens.
 ///
 /// Mafia call (private, at night only):
 /// - Only alive Mafia and Don, and only while it is night.
@@ -77,6 +79,7 @@ abstract final class CallPolicy {
       GamePhase.night => watch,
       GamePhase.day ||
       GamePhase.voting => _isAlive(game, userId) ? talk : watch,
+      GamePhase.lastWord => game.lastWordBy == userId ? talk : watch,
     };
   }
 

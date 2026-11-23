@@ -74,6 +74,7 @@ class MafiaEngine implements GameEngine {
       NightCheck() => _nightAction(state, action, now),
       CastVote() => _castVote(state, action, now),
       SkipPhase() => _skipPhase(state, action, now),
+      SayLastWord() => _sayLastWord(state, action),
       PhaseTimeout() => _timeout(state, now),
       PlayerLeft() => _playerLeft(state, action, now),
     };
@@ -100,6 +101,7 @@ class MafiaEngine implements GameEngine {
       GamePhase.night => _resolveNight(s, now),
       GamePhase.day => Accepted(_startVoting(s, now)),
       GamePhase.voting => _resolveVoting(s, now),
+      GamePhase.lastWord => Accepted(_endLastWord(s, now)),
       GamePhase.lobby ||
       GamePhase.ended => const Rejected(RejectCodes.wrongPhase),
     };
@@ -328,25 +330,12 @@ class MafiaEngine implements GameEngine {
     );
     final winner = _winner(afterNight);
     if (winner != null) return _end(afterNight, winner, now);
-
-    return Accepted(
-      _copy(
-        afterNight,
-        public: _pub(
-          afterNight.public,
-          phase: GamePhase.day,
-          phaseEndsAt: () => now.add(s.settings.durations.day),
-          log: [
-            ...afterNight.public.log,
-            PublicEvent(
-              round: round,
-              phase: GamePhase.day,
-              message: EventKeys.dayStarted,
-            ),
-          ],
-        ),
-      ),
-    );
+    if (killTarget != null && !saved) {
+      return Accepted(
+        _startLastWord(afterNight, killTarget, then: GamePhase.day, now: now),
+      );
+    }
+    return Accepted(_startDay(afterNight, now));
   }
 
   // -------------------------------------------------------------- voting
@@ -406,7 +395,7 @@ class MafiaEngine implements GameEngine {
       log.add(_event(pub, EventKeys.voteTied));
     } else {
       votedOut = leaders.single;
-      players = _eliminate(players, leaders.single);
+      players = _eliminate(players, votedOut);
       log.add(
         PublicEvent(
           round: pub.round,
@@ -440,7 +429,81 @@ class MafiaEngine implements GameEngine {
     );
     final winner = _winner(afterVote);
     if (winner != null) return _end(afterVote, winner, now);
+    if (votedOut != null) {
+      return Accepted(
+        _startLastWord(afterVote, votedOut, then: GamePhase.night, now: now),
+      );
+    }
     return Accepted(_startNight(afterVote, now));
+  }
+
+  // ----------------------------------------------------------- last word
+
+  GameState _startLastWord(
+    GameState s,
+    UserId speaker, {
+    required GamePhase then,
+    required DateTime now,
+  }) => _copy(
+    s,
+    public: _pub(
+      s.public,
+      phase: GamePhase.lastWord,
+      phaseEndsAt: () => now.add(s.settings.durations.lastWord),
+      votes: const {},
+      lastWordBy: () => speaker,
+    ),
+    memory: _memory(s).copyWith(afterLastWord: () => then),
+  );
+
+  /// Moves on to the phase the last word interrupted.
+  GameState _endLastWord(GameState s, DateTime now) {
+    final then = _memory(s).afterLastWord;
+    final cleared = _copy(
+      s,
+      memory: _memory(s).copyWith(afterLastWord: () => null),
+    );
+    return then == GamePhase.night
+        ? _startNight(cleared, now)
+        : _startDay(cleared, now);
+  }
+
+  /// How many lines [speaker] has typed as their last word.
+  int _lastWordLines(GameState s, UserId speaker) => s.public.log
+      .where((e) => e.message == EventKeys.lastWord && e.userId == speaker)
+      .length;
+
+  ApplyResult _sayLastWord(GameState s, SayLastWord a) {
+    final pub = s.public;
+    if (pub.phase != GamePhase.lastWord) {
+      return const Rejected(RejectCodes.wrongPhase);
+    }
+    if (a.actorId != pub.lastWordBy) {
+      return const Rejected(RejectCodes.notYourRole);
+    }
+    final text = ChatRules.clean(a.text);
+    if (text.isEmpty) return const Rejected(RejectCodes.emptyText);
+    if (_lastWordLines(s, a.actorId) >= ChatRules.maxLastWordLines) {
+      return const Rejected(RejectCodes.lastWordFull);
+    }
+    return Accepted(
+      _copy(
+        s,
+        public: _pub(
+          pub,
+          log: [
+            ...pub.log,
+            PublicEvent(
+              round: pub.round,
+              phase: GamePhase.lastWord,
+              message: EventKeys.lastWord,
+              userId: a.actorId,
+              text: text,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // ------------------------------------------------------- skip the timer
@@ -451,6 +514,14 @@ class MafiaEngine implements GameEngine {
       p == GamePhase.day || p == GamePhase.roleReveal;
 
   ApplyResult _skipPhase(GameState s, SkipPhase a, DateTime now) {
+    // The speaker alone may end their own last word.
+    if (s.public.phase == GamePhase.lastWord) {
+      if (a.actorId != s.public.lastWordBy) {
+        return const Rejected(RejectCodes.notYourRole);
+      }
+      if (!a.skip) return Accepted(s);
+      return Accepted(_endLastWord(s, now));
+    }
     if (!_skippable(s.public.phase)) {
       return const Rejected(RejectCodes.wrongPhase);
     }
@@ -499,18 +570,21 @@ class MafiaEngine implements GameEngine {
 
     // A player who is already out just disconnects; they keep their result.
     if (!leaver.isAlive) {
-      return Accepted(
-        _copy(
-          s,
-          public: _pub(
-            pub,
-            players: [
-              for (final p in pub.players)
-                p.userId == a.userId ? p.copyWith(isConnected: false) : p,
-            ],
-          ),
+      final gone = _copy(
+        s,
+        public: _pub(
+          pub,
+          players: [
+            for (final p in pub.players)
+              p.userId == a.userId ? p.copyWith(isConnected: false) : p,
+          ],
         ),
       );
+      // Nobody waits for the last word of a player who has gone.
+      if (pub.phase == GamePhase.lastWord && pub.lastWordBy == a.userId) {
+        return Accepted(_endLastWord(gone, now));
+      }
+      return Accepted(gone);
     }
 
     final players = [
@@ -565,6 +639,23 @@ class MafiaEngine implements GameEngine {
   }
 
   // ---------------------------------------------------------- transitions
+
+  GameState _startDay(GameState s, DateTime now) => _copy(
+    s,
+    public: _pub(
+      s.public,
+      phase: GamePhase.day,
+      phaseEndsAt: () => now.add(s.settings.durations.day),
+      log: [
+        ...s.public.log,
+        PublicEvent(
+          round: s.public.round,
+          phase: GamePhase.day,
+          message: EventKeys.dayStarted,
+        ),
+      ],
+    ),
+  );
 
   GameState _startNight(GameState s, DateTime now) {
     final round = s.public.round + 1;
@@ -663,7 +754,23 @@ class MafiaEngine implements GameEngine {
         losers: losers,
         forfeited: forfeited,
         roles: {for (final p in pub.players) p.userId: s.roles[p.userId]!},
-        story: MatchStory(nights: mem.nights, days: mem.days),
+        story: MatchStory(
+          nights: mem.nights,
+          days: mem.days,
+          lastWords: {
+            for (final e in pub.log)
+              if (e.message == EventKeys.lastWord &&
+                  e.userId != null &&
+                  e.text != null)
+                e.userId!: [
+                  for (final l in pub.log)
+                    if (l.message == EventKeys.lastWord &&
+                        l.userId == e.userId &&
+                        l.text != null)
+                      l.text!,
+                ],
+          },
+        ),
         endedAt: now,
       ),
     );
@@ -718,6 +825,12 @@ class MafiaEngine implements GameEngine {
         ];
       case GamePhase.voting when me.isAlive:
         return const ['castVote'];
+      case GamePhase.lastWord when s.public.lastWordBy == me.userId:
+        return [
+          if (_lastWordLines(s, me.userId) < ChatRules.maxLastWordLines)
+            'lastWord',
+          'skipPhase',
+        ];
       default:
         return const [];
     }
@@ -772,6 +885,7 @@ class MafiaEngine implements GameEngine {
     List<UserId>? skipVotes,
     List<PublicEvent>? log,
     Team? winner,
+    UserId? Function()? lastWordBy,
   }) => PublicGameState(
     roomId: p.roomId,
     matchId: p.matchId,
@@ -786,5 +900,9 @@ class MafiaEngine implements GameEngine {
         (phase != null && phase != p.phase ? const [] : p.skipVotes),
     log: log ?? p.log,
     winner: winner ?? p.winner,
+    // The speaker belongs to the last word only.
+    lastWordBy: lastWordBy != null
+        ? lastWordBy()
+        : (phase != null && phase != p.phase ? null : p.lastWordBy),
   );
 }

@@ -8,7 +8,11 @@ import 'ids.dart';
 /// It holds every secret night move, so the engine only builds it when the
 /// match ends, on `MatchResult.story`.
 class MatchStory {
-  const MatchStory({this.nights = const [], this.days = const []});
+  const MatchStory({
+    this.nights = const [],
+    this.days = const [],
+    this.lastWords = const {},
+  });
 
   bool get isEmpty => nights.isEmpty && days.isEmpty;
 
@@ -18,14 +22,23 @@ class MatchStory {
   /// One entry per vote that was resolved, oldest first.
   final List<StoryVote> days;
 
+  /// What each eliminated player typed as their last word, in order (up to
+  /// three lines each). Players who only spoke on camera are not here.
+  final Map<UserId, List<String>> lastWords;
+
   Json toJson() => {
     'nights': [for (final n in nights) n.toJson()],
     'days': [for (final d in days) d.toJson()],
+    'lastWords': lastWords,
   };
 
   factory MatchStory.fromJson(Json j) => MatchStory(
     nights: decodeList(j['nights'], StoryNight.fromJson),
     days: decodeList(j['days'], StoryVote.fromJson),
+    lastWords: {
+      for (final e in ((j['lastWords'] as Map?) ?? const {}).entries)
+        e.key as String: decodeStrings(e.value),
+    },
   );
 }
 

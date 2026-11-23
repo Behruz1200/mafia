@@ -6,6 +6,7 @@ import '../../../core/theme.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../call/call_view.dart';
 import '../ui/game_style.dart';
+import 'chat_panel.dart';
 import 'player_table.dart';
 
 /// Before the match: invite code, who is seated, stake, and Start for the
@@ -129,12 +130,21 @@ class WaitingRoom extends StatelessWidget {
               const SizedBox(height: 16),
               // Cameras work here too, so friends can say hello and check
               // their camera and mic before the match.
-              PlayerTable(
-                players: seated,
-                me: me,
-                face: (id, placeholder) =>
-                    SeatVideo(userId: id, placeholder: placeholder),
+              SeatReactions(
+                roomId: room.id,
+                builder: (context, showing) => PlayerTable(
+                  players: seated,
+                  me: me,
+                  face: (id, placeholder) =>
+                      SeatVideo(userId: id, placeholder: placeholder),
+                  overlays: {
+                    for (final e in showing.entries)
+                      e.key: ReactionPop(emoji: e.value),
+                  },
+                ),
               ),
+              const SizedBox(height: 12),
+              ChatPanel(roomId: room.id, state: null, private: null, me: me),
             ],
           ),
         ),

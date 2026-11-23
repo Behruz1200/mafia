@@ -196,10 +196,11 @@ class Rig {
     PlayerDirectory? players,
     RoomsConfig config = const RoomsConfig(),
     MatchRecorder? recorder,
+    GameEngine engine = const ScriptEngine(),
   }) : wallet = InMemoryWalletSettlement(balances: coins),
        recorder = recorder ?? InMemoryMatchRecorder() {
     service = RoomService(
-      engine: const ScriptEngine(),
+      engine: engine,
       wallet: wallet,
       hub: hub,
       players: players ?? TestPlayers(),

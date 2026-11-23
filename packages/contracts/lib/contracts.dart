@@ -10,6 +10,7 @@ export 'src/api/socket.dart';
 export 'src/json.dart' show Json;
 export 'src/models/account.dart';
 export 'src/models/call.dart';
+export 'src/models/chat.dart';
 export 'src/models/game_action.dart';
 export 'src/models/game_state.dart';
 export 'src/models/ids.dart';

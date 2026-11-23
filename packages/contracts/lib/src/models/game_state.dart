@@ -17,6 +17,7 @@ class PublicEvent {
     required this.message,
     this.userId,
     this.cause,
+    this.text,
   });
 
   final int round;
@@ -28,12 +29,17 @@ class PublicEvent {
   final UserId? userId;
   final EliminationCause? cause;
 
+  /// Only for `lastWord` events: what [userId] typed as their last word,
+  /// in their own words (cleaned by `ChatRules.clean`). Null otherwise.
+  final String? text;
+
   Json toJson() => {
     'round': round,
     'phase': phase.name,
     'message': message,
     'userId': userId,
     'cause': cause?.name,
+    if (text != null) 'text': text,
   };
 
   factory PublicEvent.fromJson(Json j) => PublicEvent(
@@ -44,6 +50,7 @@ class PublicEvent {
     cause: j['cause'] == null
         ? null
         : decodeEnum(EliminationCause.values, j['cause']),
+    text: j['text'] as String?,
   );
 }
 
@@ -61,6 +68,7 @@ class PublicGameState {
     this.skipVotes = const [],
     this.log = const [],
     this.winner,
+    this.lastWordBy,
   });
 
   final RoomId roomId;
@@ -83,6 +91,10 @@ class PublicGameState {
   /// Set once [phase] is [GamePhase.ended]. Null if the match was cancelled.
   final Team? winner;
 
+  /// During [GamePhase.lastWord]: the player saying their last word. They
+  /// are already out ([Player.isAlive] false) but may talk until it ends.
+  final UserId? lastWordBy;
+
   Iterable<Player> get alive => players.where((p) => p.isAlive);
 
   Json toJson() => {
@@ -96,6 +108,7 @@ class PublicGameState {
     'skipVotes': skipVotes,
     'log': [for (final e in log) e.toJson()],
     'winner': winner?.name,
+    'lastWordBy': lastWordBy,
   };
 
   factory PublicGameState.fromJson(Json j) => PublicGameState(
@@ -111,6 +124,7 @@ class PublicGameState {
     skipVotes: decodeStrings(j['skipVotes']),
     log: decodeList(j['log'], PublicEvent.fromJson),
     winner: j['winner'] == null ? null : decodeEnum(Team.values, j['winner']),
+    lastWordBy: j['lastWordBy'] as String?,
   );
 }
 

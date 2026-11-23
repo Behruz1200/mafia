@@ -16,6 +16,12 @@ abstract interface class RealtimeRooms {
   Future<void> watch(ClientConnection c, RoomId roomId);
   void unwatch(ClientConnection c, RoomId roomId);
   Future<void> act(UserId userId, RoomId roomId, GameAction action);
+
+  /// A chat message from [userId]; the rooms code decides who reads it.
+  Future<void> chat(UserId userId, RoomId roomId, String text);
+
+  /// An emoji popped on [userId]'s seat, seen by the same players as chat.
+  Future<void> react(UserId userId, RoomId roomId, String emoji);
 }
 
 /// Close codes the app can act on.
@@ -75,6 +81,10 @@ Handler socketHandler({
               final stamped = stampActor(action, userId);
               if (stamped == null) return fail('invalid_action');
               await rooms.act(userId, roomId, stamped);
+            case SendChat(:final roomId, :final text):
+              await rooms.chat(userId, roomId, text);
+            case SendReaction(:final roomId, :final emoji):
+              await rooms.react(userId, roomId, emoji);
           }
         } on RoomError catch (e) {
           fail(e.code, e.message);
@@ -96,7 +106,7 @@ String? _bearer(Request req) {
 }
 
 /// The same action, as done by [userId]. Null for actions only the server
-/// may make (timeouts, players leaving).
+/// may make (timeouts, players leaving, last words, which come in as chat).
 GameAction? stampActor(GameAction a, UserId userId) => switch (a) {
   StartMatch() => StartMatch(actorId: userId),
   NightKill(:final targetId) => NightKill(actorId: userId, targetId: targetId),
@@ -107,5 +117,5 @@ GameAction? stampActor(GameAction a, UserId userId) => switch (a) {
   ),
   CastVote(:final targetId) => CastVote(actorId: userId, targetId: targetId),
   SkipPhase(:final skip) => SkipPhase(actorId: userId, skip: skip),
-  PhaseTimeout() || PlayerLeft() => null,
+  PhaseTimeout() || PlayerLeft() || SayLastWord() => null,
 };

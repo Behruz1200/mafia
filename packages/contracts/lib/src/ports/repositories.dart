@@ -1,5 +1,6 @@
 import '../models/account.dart';
 import '../models/call.dart';
+import '../models/chat.dart';
 import '../models/game_action.dart';
 import '../models/game_state.dart';
 import '../models/ids.dart';
@@ -58,6 +59,20 @@ abstract interface class RoomRepository {
   /// Send a player action. The server answers with new state, or an error
   /// on the socket.
   Future<void> send(RoomId roomId, GameAction action);
+
+  /// The room's chat as this player may read it, oldest first. Emits the
+  /// whole list again on every change.
+  Stream<List<ChatMessage>> watchChat(RoomId roomId);
+
+  /// Send a chat message; the server picks who reads it (`ChatRules`).
+  Future<void> sendChat(RoomId roomId, String text);
+
+  /// Emoji popped on seats in [roomId] that this player may see, as they
+  /// happen (never replayed).
+  Stream<ChatReaction> watchReactions(RoomId roomId);
+
+  /// Pop one of `ChatRules.reactions` on my seat.
+  Future<void> sendReaction(RoomId roomId, String emoji);
 }
 
 /// Owned by stream 4 (coins).

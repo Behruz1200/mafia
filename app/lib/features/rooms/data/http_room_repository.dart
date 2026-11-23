@@ -42,6 +42,10 @@ class HttpRoomRepository implements RoomRepository {
 
   final _messages = StreamController<ServerMessage>.broadcast();
   final _watched = <RoomId>{};
+
+  /// Each room's chat as the server last sent it, so a screen that opens
+  /// later still shows the messages so far.
+  final _chat = <RoomId, List<ChatMessage>>{};
   WebSocketChannel? _socket;
   StreamSubscription<Object?>? _sub;
   Timer? _retry;
@@ -150,6 +154,54 @@ class HttpRoomRepository implements RoomRepository {
     _sendFrame(SendAction(roomId, action));
   }
 
+  @override
+  Stream<List<ChatMessage>> watchChat(RoomId roomId) async* {
+    yield _chat[roomId] ?? const [];
+    yield* _follow(roomId)
+        .where(
+          (m) =>
+              (m is ChatPosted && m.message.roomId == roomId) ||
+              (m is ChatHistory && m.roomId == roomId),
+        )
+        .map((_) => _chat[roomId] ?? const <ChatMessage>[]);
+  }
+
+  @override
+  Future<void> sendChat(RoomId roomId, String text) async {
+    _ensureSocket();
+    _sendFrame(SendChat(roomId, text));
+  }
+
+  @override
+  Stream<ChatReaction> watchReactions(RoomId roomId) =>
+      _follow(roomId)
+          .whereType<ReactionShown>()
+          .map((m) => m.reaction)
+          .where((r) => r.roomId == roomId);
+
+  @override
+  Future<void> sendReaction(RoomId roomId, String emoji) async {
+    _ensureSocket();
+    _sendFrame(SendReaction(roomId, emoji));
+  }
+
+  /// Keeps [_chat] up to date before listeners hear about a message.
+  void _remember(ServerMessage m) {
+    switch (m) {
+      case ChatHistory(:final roomId, :final messages):
+        _chat[roomId] = List.unmodifiable(messages);
+      case ChatPosted(:final message):
+        final list = _chat[message.roomId] ?? const <ChatMessage>[];
+        if (list.any((x) => x.id == message.id)) return;
+        final next = [...list, message];
+        _chat[message.roomId] = List.unmodifiable(
+          next.length > 200 ? next.sublist(next.length - 200) : next,
+        );
+      default:
+        break;
+    }
+  }
+
   /// Messages for [roomId]. Subscribing (re-)sends `watchRoom`, so each new
   /// listener gets the current room and state straight away.
   Stream<ServerMessage> _follow(RoomId roomId) {
@@ -182,9 +234,9 @@ class HttpRoomRepository implements RoomRepository {
       (frame) {
         _attempt = 0;
         try {
-          _messages.add(
-            ServerMessage.fromJson(jsonDecode(frame as String) as Json),
-          );
+          final m = ServerMessage.fromJson(jsonDecode(frame as String) as Json);
+          _remember(m);
+          _messages.add(m);
         } on Object {
           // A message type this app version does not know yet: skip it.
         }

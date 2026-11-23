@@ -218,7 +218,10 @@ class _GameScreenState extends ConsumerState<GameScreen> {
               key: ValueKey(switch (showWaiting
                   ? GamePhase.lobby
                   : public.phase) {
-                GamePhase.night || GamePhase.day || GamePhase.voting => 'match',
+                GamePhase.night ||
+                GamePhase.day ||
+                GamePhase.voting ||
+                GamePhase.lastWord => 'match',
                 final p => p.name,
               }),
               child: body,

@@ -10,6 +10,7 @@ class EngineMemory {
     this.checks = const {},
     this.donChecks = const {},
     this.forfeited = const [],
+    this.afterLastWord,
     this.nights = const [],
     this.days = const [],
   });
@@ -30,6 +31,10 @@ class EngineMemory {
   /// Players who left while alive, in the order they left.
   final List<UserId> forfeited;
 
+  /// During a last word: the phase that follows it (`day` after a night
+  /// kill, `night` after a vote).
+  final GamePhase? afterLastWord;
+
   /// What happened each resolved night and vote, for the end-of-match
   /// story. Only revealed once the match is over.
   final List<StoryNight> nights;
@@ -41,6 +46,7 @@ class EngineMemory {
     Map<UserId, Map<UserId, Team>>? checks,
     Map<UserId, Map<UserId, bool>>? donChecks,
     List<UserId>? forfeited,
+    GamePhase? Function()? afterLastWord,
     List<StoryNight>? nights,
     List<StoryVote>? days,
   }) => EngineMemory(
@@ -49,6 +55,7 @@ class EngineMemory {
     checks: checks ?? this.checks,
     donChecks: donChecks ?? this.donChecks,
     forfeited: forfeited ?? this.forfeited,
+    afterLastWord: afterLastWord == null ? this.afterLastWord : afterLastWord(),
     nights: nights ?? this.nights,
     days: days ?? this.days,
   );
@@ -64,6 +71,7 @@ class EngineMemory {
       for (final MapEntry(:key, :value) in donChecks.entries) key: value,
     },
     'forfeited': forfeited,
+    'afterLastWord': afterLastWord?.name,
     'nights': [for (final n in nights) n.toJson()],
     'days': [for (final d in days) d.toJson()],
   };
@@ -88,6 +96,9 @@ class EngineMemory {
     forfeited: [
       for (final e in (j['forfeited'] as List? ?? const [])) e as String,
     ],
+    afterLastWord: j['afterLastWord'] == null
+        ? null
+        : GamePhase.values.byName(j['afterLastWord']! as String),
     nights: [
       for (final e in (j['nights'] as List? ?? const []))
         StoryNight.fromJson(e as Json),
