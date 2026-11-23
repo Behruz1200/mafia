@@ -5,12 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../core/top_bar_buttons.dart';
 import '../../core/last_room.dart';
 import '../../core/providers.dart';
 import '../../core/routes.dart';
 import '../../core/theme.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../game/ui/game_style.dart';
+import '../shop/data/http_wallet_repository.dart';
 import 'widgets/create_room_sheet.dart';
 import 'widgets/join_code_dialog.dart';
 
@@ -66,6 +68,31 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     return mounted;
   }
 
+  /// Re-reads coins and profile, and goes back into a running match if
+  /// there is one. From the refresh button or a pull down.
+  Future<void> _refresh() async {
+    final t = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    ref
+      ..invalidate(_myProfileProvider)
+      ..invalidate(balanceProvider);
+    final wallet = ref.read(walletRepositoryProvider);
+    try {
+      if (wallet is HttpWalletRepository) await wallet.refresh();
+    } on Object {
+      // Shown as before; the next refresh tries again.
+    }
+    if (await _resume()) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(t.refreshDone),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+  }
+
   void _go(Room room) =>
       // Not awaited: the room screen leaves with `go(lobby)`, which never
       // completes this push, and awaiting it kept the lobby busy for good.
@@ -104,68 +131,74 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
         body: SafeArea(
           child: AbsorbPointer(
             absorbing: _busy,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
-              children: [
-                _TopBar(
-                  name: profile?.displayName,
-                  coins: balance == null ? null : t.coins(balance.available),
-                ),
-                const SizedBox(height: 28),
-                _Tagline(text: t.lobbyTagline, highlight: t.appTitle),
-                const SizedBox(height: 24),
-                _QuickMatchCard(
-                  key: const ValueKey('quickMatch'),
-                  title: t.quickMatch,
-                  subtitle: t.lobbyQuickMatchHint,
-                  onTap: () => _open(rooms.quickMatch),
-                ),
-                const SizedBox(height: 14),
-                IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 12,
-                    children: [
-                      Expanded(
-                        child: _ModeCard(
-                          key: const ValueKey('createRoom'),
-                          icon: Icons.add_rounded,
-                          color: GameStyle.gold,
-                          title: t.createRoom,
-                          subtitle: t.lobbyCreateRoomHint,
-                          onTap: () async {
-                            final settings = await showCreateRoomSheet(
-                              context,
-                              available: balance?.available ?? 0,
-                              canStake: profile?.isAdult ?? false,
-                            );
-                            if (settings != null) {
-                              await _open(() => rooms.createRoom(settings));
-                            }
-                          },
-                        ),
-                      ),
-                      Expanded(
-                        child: _ModeCard(
-                          key: const ValueKey('joinRoom'),
-                          icon: Icons.vpn_key_rounded,
-                          color: GameStyle.town,
-                          title: t.joinRoom,
-                          subtitle: t.lobbyJoinRoomHint,
-                          onTap: () async {
-                            final code = await showJoinCodeDialog(context);
-                            if (code != null) {
-                              await _open(() => rooms.joinByCode(code));
-                            }
-                          },
-                        ),
-                      ),
-                    ],
+            child: RefreshIndicator(
+              onRefresh: _refresh,
+              color: GameStyle.crimson,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+                children: [
+                  _TopBar(
+                    name: profile?.displayName,
+                    coins: balance?.available,
+                    onRefresh: _refresh,
                   ),
-                ),
-                const SizedBox(height: 14),
-                _HowToPlay(),
-              ],
+                  const SizedBox(height: 22),
+                  _Tagline(text: t.lobbyTagline, highlight: t.appTitle),
+                  const SizedBox(height: 24),
+                  _QuickMatchCard(
+                    key: const ValueKey('quickMatch'),
+                    title: t.quickMatch,
+                    subtitle: t.lobbyQuickMatchHint,
+                    onTap: () => _open(rooms.quickMatch),
+                  ),
+                  const SizedBox(height: 14),
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      spacing: 12,
+                      children: [
+                        Expanded(
+                          child: _ModeCard(
+                            key: const ValueKey('createRoom'),
+                            icon: Icons.add_rounded,
+                            color: GameStyle.gold,
+                            title: t.createRoom,
+                            subtitle: t.lobbyCreateRoomHint,
+                            onTap: () async {
+                              final settings = await showCreateRoomSheet(
+                                context,
+                                available: balance?.available ?? 0,
+                                canStake: profile?.isAdult ?? false,
+                              );
+                              if (settings != null) {
+                                await _open(() => rooms.createRoom(settings));
+                              }
+                            },
+                          ),
+                        ),
+                        Expanded(
+                          child: _ModeCard(
+                            key: const ValueKey('joinRoom'),
+                            icon: Icons.vpn_key_rounded,
+                            color: GameStyle.town,
+                            title: t.joinRoom,
+                            subtitle: t.lobbyJoinRoomHint,
+                            onTap: () async {
+                              final code = await showJoinCodeDialog(context);
+                              if (code != null) {
+                                await _open(() => rooms.joinByCode(code));
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _HowToPlay(),
+                ],
+              ),
             ),
           ),
         ),
@@ -177,17 +210,22 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
 /// The player's avatar (opens the profile), a greeting and the coins
 /// (open the shop).
 class _TopBar extends StatelessWidget {
-  const _TopBar({this.name, this.coins});
+  const _TopBar({this.name, this.coins, required this.onRefresh});
+
+  /// Below this width the coins show as a bare number, so the language
+  /// and refresh buttons still fit.
+  static const _narrow = 370.0;
 
   final String? name;
-  final String? coins;
+  final int? coins;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     final name = this.name;
-    return Row(
-      spacing: 12,
+    final bar = Row(
+      spacing: 6,
       children: [
         Tooltip(
           message: t.profileTitle,
@@ -215,20 +253,44 @@ class _TopBar extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: name == null
-              ? const SizedBox.shrink()
-              : Text(
-                  t.lobbyGreeting(name),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            spacing: 6,
+            children: [
+              const LanguageButton(compact: true),
+              RefreshButton(onPressed: onRefresh),
+              if (coins != null)
+                Flexible(
+                  child: CoinChip(
+                    label: MediaQuery.sizeOf(context).width < _narrow
+                        ? '${coins!}'
+                        : t.coins(coins!),
+                    onTap: () => context.push(Routes.shop),
                   ),
                 ),
+            ],
+          ),
         ),
-        if (coins != null)
-          CoinChip(label: coins!, onTap: () => context.push(Routes.shop)),
+      ],
+    );
+    if (name == null) return bar;
+    // The greeting gets its own line, so the language and refresh buttons
+    // fit beside the coins on small phones.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 18,
+      children: [
+        bar,
+        Text(
+          t.lobbyGreeting(name),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: GameStyle.muted,
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
+          ),
+        ),
       ],
     );
   }

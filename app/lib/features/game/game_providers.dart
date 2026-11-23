@@ -96,6 +96,11 @@ class GameActions {
   Future<void> vote(UserId? target) =>
       _send(CastVote(actorId: me, targetId: target));
 
+  /// Agree ([skip] true) or stop agreeing to end the timer early. The
+  /// server ends it only when every living player agrees.
+  Future<void> skipTimer({required bool skip}) =>
+      _send(SkipPhase(actorId: me, skip: skip));
+
   Future<void> leave() => repo.leave(roomId);
 
   /// Back to the waiting room after a match. The real server keeps the

@@ -215,12 +215,16 @@ class CoinChip extends StatelessWidget {
             spacing: 8,
             children: [
               const CoinIcon(size: 26),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: GameStyle.gold,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: GameStyle.gold,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
                 ),
               ),
               if (onTap != null)

@@ -55,7 +55,12 @@ rejects it earlier with `too_early`.
   private view when the night ends.
 - The night ends early once every living night role has made every pick.
 
-**Day.** Talk. The night's result is in the log. Ends on the timer.
+**Day.** Talk. The night's result is in the log. Ends on the timer, or
+early once every living player has sent `SkipPhase` ("skip the timer").
+Each agreement shows in `PublicGameState.skipVotes`; a player can take it
+back with `SkipPhase(skip: false)`, and the list clears when the phase
+changes. One player alone can never skip for everyone. The role reveal can
+be skipped the same way.
 
 **Voting.** Every living player votes for another living player or skips,
 and may change their vote. The most-voted player is out if they have more
@@ -74,7 +79,8 @@ player who is already out can leave without forfeiting.
 
 `PublicEvent.message` is always one of `EventKeys`: `rolesDealt`,
 `nightStarted`, `eliminated` (with `userId` and `cause`), `nobodyDied`,
-`dayStarted`, `votingStarted`, `voteTied`, `nobodyVotedOut`, `playerLeft`,
+`dayStarted`, `votingStarted`, `voteTied`, `nobodyVotedOut`, `phaseSkipped`,
+`playerLeft`,
 `townWon`, `mafiaWon`. The app localises them.
 
 ## Rejection codes

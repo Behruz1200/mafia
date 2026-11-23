@@ -4,14 +4,17 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/last_room.dart';
+import '../../core/top_bar_buttons.dart';
 import '../../core/routes.dart';
 import '../../l10n/generated/app_localizations.dart';
+import '../call/call_providers.dart';
 import 'game_providers.dart';
 import 'ui/game_style.dart';
 import 'widgets/match_view.dart';
 import 'widgets/phase_header.dart';
 import 'widgets/results_view.dart';
 import 'widgets/role_card.dart';
+import 'widgets/skip_timer_bar.dart';
 import 'widgets/waiting_room.dart';
 
 /// Stream 6 (game UI) owns this folder: the table, role card, night
@@ -36,6 +39,34 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     super.initState();
     // Remember the room, so a reload or restart brings the player back.
     ref.read(lastRoomStoreProvider).write(widget.roomId);
+  }
+
+  /// Asks the server again for the room, the table and my card, and
+  /// reconnects the call. For when something looks stuck.
+  Future<void> _refresh() async {
+    final id = widget.roomId;
+    final t = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    ref
+      ..invalidate(roomProvider(id))
+      ..invalidate(publicStateProvider(id))
+      ..invalidate(myStateProvider(id));
+    ref.read(callSessionProvider(id)).resync();
+    try {
+      await ref
+          .read(roomProvider(id).future)
+          .timeout(const Duration(seconds: 8));
+    } on Object {
+      // Still reconnecting; the socket keeps trying on its own.
+    }
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(t.refreshDone),
+          duration: const Duration(seconds: 1),
+        ),
+      );
   }
 
   Future<void> _leave() async {
@@ -79,6 +110,9 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     final private = ref.watch(myStateProvider(id)).value;
     final result = ref.watch(matchEndProvider(id)).value;
     final isDemo = actions.demo != null;
+    // The call lives as long as this screen, so players can see and hear
+    // each other in the waiting room and stay connected into the match.
+    ref.watch(callSessionProvider(id));
 
     final showWaiting =
         public == null ||
@@ -96,7 +130,12 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         onStart: actions.startMatch,
       );
     } else if (public.phase == GamePhase.roleReveal) {
-      body = _RoleReveal(state: public, private: private);
+      body = _RoleReveal(
+        state: public,
+        private: private,
+        me: me,
+        onSkipTimer: (skip) => actions.skipTimer(skip: skip),
+      );
     } else if (public.phase == GamePhase.ended) {
       body = ResultsView(
         state: public,
@@ -116,6 +155,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         private: private,
         onNightAction: actions.nightAction,
         onVote: actions.vote,
+        onSkipTimer: (skip) => actions.skipTimer(skip: skip),
       );
     }
 
@@ -151,6 +191,10 @@ class _GameScreenState extends ConsumerState<GameScreen> {
             leadingWidth: 64,
             title: Text(showWaiting ? t.gameWaitingTitle : t.appTitle),
             actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: RefreshButton(onPressed: _refresh),
+              ),
               if (isDemo)
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
@@ -187,10 +231,17 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 }
 
 class _RoleReveal extends StatelessWidget {
-  const _RoleReveal({required this.state, required this.private});
+  const _RoleReveal({
+    required this.state,
+    required this.private,
+    required this.me,
+    required this.onSkipTimer,
+  });
 
   final PublicGameState state;
   final PrivatePlayerState? private;
+  final UserId? me;
+  final Future<void> Function(bool skip) onSkipTimer;
 
   @override
   Widget build(BuildContext context) {
@@ -221,6 +272,11 @@ class _RoleReveal extends StatelessWidget {
               ),
             ),
           ),
+          if (private?.allowedActions.contains('skipPhase') ?? false)
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: SkipTimerBar(state: state, me: me, onSkip: onSkipTimer),
+            ),
         ],
       ),
     );

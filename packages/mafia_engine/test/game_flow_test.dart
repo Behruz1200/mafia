@@ -284,6 +284,78 @@ void main() {
     });
   });
 
+  group('skip the timer', () {
+    List<UserId> alive() => [for (final p in t.state.public.alive) p.userId];
+
+    setUp(() {
+      t.toNight();
+      t.act(NightKill(actorId: don, targetId: civilians[0]));
+      t.timeout();
+      expect(t.phase, GamePhase.day);
+    });
+
+    test('the day ends early only once every living player agrees', () {
+      final everyone = alive();
+      for (final id in everyone.take(everyone.length - 1)) {
+        t.act(SkipPhase(actorId: id));
+        expect(t.phase, GamePhase.day);
+      }
+      expect(t.state.public.skipVotes, hasLength(everyone.length - 1));
+      t.act(SkipPhase(actorId: everyone.last));
+      expect(t.phase, GamePhase.voting);
+      expect(t.state.public.skipVotes, isEmpty);
+      expect(t.log.any((e) => e.message == EventKeys.phaseSkipped), isTrue);
+    });
+
+    test('one player tapping twice still counts once', () {
+      t.act(SkipPhase(actorId: don));
+      t.act(SkipPhase(actorId: don));
+      expect(t.state.public.skipVotes, [don]);
+    });
+
+    test('a player can take their agreement back', () {
+      t.act(SkipPhase(actorId: don));
+      t.act(SkipPhase(actorId: don, skip: false));
+      expect(t.state.public.skipVotes, isEmpty);
+    });
+
+    test('dead players cannot skip and are not waited for', () {
+      expect(t.reject(SkipPhase(actorId: civilians[0])), RejectCodes.actorDead);
+      for (final id in alive()) {
+        t.act(SkipPhase(actorId: id));
+      }
+      expect(t.phase, GamePhase.voting);
+    });
+
+    test('the last holdout leaving ends the day', () {
+      final everyone = alive();
+      for (final id in everyone) {
+        if (id != civilians[1]) t.act(SkipPhase(actorId: id));
+      }
+      t.act(PlayerLeft(userId: civilians[1]));
+      expect(t.phase, GamePhase.voting);
+    });
+
+    test('night and voting cannot be skipped this way', () {
+      t.toVoting();
+      expect(t.reject(SkipPhase(actorId: don)), RejectCodes.wrongPhase);
+      t.timeout();
+      expect(t.phase, GamePhase.night);
+      expect(t.reject(SkipPhase(actorId: don)), RejectCodes.wrongPhase);
+    });
+  });
+
+  group('role reveal skip', () {
+    test('everyone agreeing starts the night', () {
+      final ids = [for (final p in t.state.public.players) p.userId];
+      for (final id in ids) {
+        t.act(SkipPhase(actorId: id));
+      }
+      expect(t.phase, GamePhase.night);
+      expect(t.state.public.round, 1);
+    });
+  });
+
   group('winning', () {
     test('the town wins when the last Mafia is voted out', () {
       t.toNight();
@@ -405,7 +477,8 @@ void main() {
     test('allowed actions follow the phase and role', () {
       List<String> allowed(UserId id) =>
           engine.privateView(t.state, id).allowedActions;
-      expect(allowed('user_0'), ['startMatch']);
+      expect(allowed('user_0'), ['startMatch', 'skipPhase']);
+      expect(allowed('user_1'), ['skipPhase']);
       t.toNight();
       expect(allowed(don), ['nightKill', 'nightCheck']);
       expect(allowed(mafia), ['nightKill']);
@@ -414,7 +487,8 @@ void main() {
       expect(allowed(civilians[0]), isEmpty);
       t.act(NightKill(actorId: don, targetId: civilians[0]));
       t.timeout();
-      expect(allowed(don), isEmpty);
+      expect(allowed(don), ['skipPhase']);
+      expect(allowed(civilians[0]), isEmpty); // dead
       t.toVoting();
       expect(allowed(don), ['castVote']);
       expect(allowed(civilians[0]), isEmpty); // dead

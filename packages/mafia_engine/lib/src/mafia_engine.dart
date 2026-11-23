@@ -73,6 +73,7 @@ class MafiaEngine implements GameEngine {
       NightHeal() => _nightAction(state, action, now),
       NightCheck() => _nightAction(state, action, now),
       CastVote() => _castVote(state, action, now),
+      SkipPhase() => _skipPhase(state, action, now),
       PhaseTimeout() => _timeout(state, now),
       PlayerLeft() => _playerLeft(state, action, now),
     };
@@ -392,6 +393,49 @@ class MafiaEngine implements GameEngine {
     return Accepted(_startNight(afterVote, now));
   }
 
+  // ------------------------------------------------------- skip the timer
+
+  /// Phases whose timer the players may end early by all agreeing. Night
+  /// and voting already end as soon as everyone has acted.
+  static bool _skippable(GamePhase p) =>
+      p == GamePhase.day || p == GamePhase.roleReveal;
+
+  ApplyResult _skipPhase(GameState s, SkipPhase a, DateTime now) {
+    if (!_skippable(s.public.phase)) {
+      return const Rejected(RejectCodes.wrongPhase);
+    }
+    final actor = _player(s, a.actorId);
+    if (actor == null) return const Rejected(RejectCodes.unknownPlayer);
+    if (!actor.isAlive) return const Rejected(RejectCodes.actorDead);
+    final skips = [
+      for (final u in s.public.skipVotes)
+        if (u != a.actorId) u,
+      if (a.skip) a.actorId,
+    ];
+    final next = _copy(s, public: _pub(s.public, skipVotes: skips));
+    return _maybeSkip(next, now) ?? Accepted(next);
+  }
+
+  /// Ends the phase now if every living player has agreed to skip.
+  ApplyResult? _maybeSkip(GameState s, DateTime now) {
+    final pub = s.public;
+    if (!_skippable(pub.phase)) return null;
+    final alive = pub.alive.toList();
+    if (alive.isEmpty ||
+        !alive.every((p) => pub.skipVotes.contains(p.userId))) {
+      return null;
+    }
+    final skipped = _copy(
+      s,
+      public: _pub(pub, log: [...pub.log, _event(pub, EventKeys.phaseSkipped)]),
+    );
+    return Accepted(
+      pub.phase == GamePhase.day
+          ? _startVoting(skipped, now)
+          : _startNight(skipped, now),
+    );
+  }
+
   // ------------------------------------------------------------- leaving
 
   ApplyResult _playerLeft(GameState s, PlayerLeft a, DateTime now) {
@@ -434,6 +478,10 @@ class MafiaEngine implements GameEngine {
           for (final e in pub.votes.entries)
             if (e.key != a.userId && e.value != a.userId) e.key: e.value,
         },
+        skipVotes: [
+          for (final u in pub.skipVotes)
+            if (u != a.userId) u,
+        ],
         log: [
           ...pub.log,
           PublicEvent(
@@ -463,7 +511,7 @@ class MafiaEngine implements GameEngine {
         )) {
       return _resolveVoting(next, now);
     }
-    return Accepted(next);
+    return _maybeSkip(next, now) ?? Accepted(next);
   }
 
   // ---------------------------------------------------------- transitions
@@ -602,7 +650,11 @@ class MafiaEngine implements GameEngine {
   List<String> _allowedActions(GameState s, Player me, Role role) {
     switch (s.public.phase) {
       case GamePhase.roleReveal:
-        return me.isHost ? const ['startMatch'] : const [];
+        return me.isHost
+            ? const ['startMatch', 'skipPhase']
+            : const ['skipPhase'];
+      case GamePhase.day when me.isAlive:
+        return const ['skipPhase'];
       case GamePhase.night when me.isAlive:
         return [
           if (role.team == Team.mafia) 'nightKill',
@@ -664,6 +716,7 @@ class MafiaEngine implements GameEngine {
     DateTime? Function()? phaseEndsAt,
     List<Player>? players,
     Map<UserId, UserId?>? votes,
+    List<UserId>? skipVotes,
     List<PublicEvent>? log,
     Team? winner,
   }) => PublicGameState(
@@ -674,6 +727,10 @@ class MafiaEngine implements GameEngine {
     phaseEndsAt: phaseEndsAt == null ? p.phaseEndsAt : phaseEndsAt(),
     players: players ?? p.players,
     votes: votes ?? p.votes,
+    // Agreements to skip belong to one phase only.
+    skipVotes:
+        skipVotes ??
+        (phase != null && phase != p.phase ? const [] : p.skipVotes),
     log: log ?? p.log,
     winner: winner ?? p.winner,
   );

@@ -27,6 +27,7 @@ void main() {
       round: 2,
       players: samplePlayers(6),
       votes: const {'user_1': 'user_2', 'user_3': null},
+      skipVotes: const ['user_5'],
       log: const [
         PublicEvent(
           round: 1,
@@ -78,6 +79,8 @@ void main() {
       NightHeal(actorId: 'a', targetId: 'b'),
       NightCheck(actorId: 'a', targetId: 'b'),
       CastVote(actorId: 'a', targetId: null),
+      SkipPhase(actorId: 'a'),
+      SkipPhase(actorId: 'a', skip: false),
       PhaseTimeout(),
       PlayerLeft(userId: 'b'),
     ];

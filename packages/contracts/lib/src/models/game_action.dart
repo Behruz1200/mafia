@@ -28,6 +28,10 @@ sealed class GameAction {
       'nightHeal' => NightHeal(actorId: actor, targetId: target!),
       'nightCheck' => NightCheck(actorId: actor, targetId: target!),
       'castVote' => CastVote(actorId: actor, targetId: target),
+      'skipPhase' => SkipPhase(
+        actorId: actor,
+        skip: j['skip'] as bool? ?? true,
+      ),
       'phaseTimeout' => const PhaseTimeout(),
       'playerLeft' => PlayerLeft(userId: j['userId']! as String),
       final t => throw FormatException('Unknown GameAction type: $t'),
@@ -80,6 +84,19 @@ final class CastVote extends GameAction {
   String get type => 'castVote';
   @override
   Json _fields() => {'targetId': targetId};
+}
+
+/// A living player agrees to end the current timer early (the day's
+/// discussion, or the role reveal). The phase ends only once every living
+/// player has agreed, so one player can never skip for everyone.
+/// [skip] false takes the player's agreement back.
+final class SkipPhase extends GameAction {
+  const SkipPhase({required super.actorId, this.skip = true});
+  final bool skip;
+  @override
+  String get type => 'skipPhase';
+  @override
+  Json _fields() => {'skip': skip};
 }
 
 /// Sent by the server when the current phase's timer runs out.

@@ -26,6 +26,10 @@ abstract final class EventKeys {
   /// Skips won or no one was voted for, so no one is out.
   static const nobodyVotedOut = 'nobodyVotedOut';
 
+  /// Every living player agreed to end the timer early (day or role
+  /// reveal), so the next phase started straight away.
+  static const phaseSkipped = 'phaseSkipped';
+
   /// [PublicEvent.userId] left mid-match and forfeits their stake.
   static const playerLeft = 'playerLeft';
 
