@@ -63,8 +63,7 @@ class MatchResult {
     forfeited: decodeStrings(j['forfeited']),
     roles: {
       for (final e in ((j['roles'] as Map?) ?? const {}).entries)
-        if (Role.values.asNameMap()[e.value] case final role?)
-          e.key as String: role,
+        e.key as String: ?Role.values.asNameMap()[e.value],
     },
     endedAt: decodeTime(j['endedAt']),
   );
