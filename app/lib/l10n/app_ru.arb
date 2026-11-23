@@ -96,6 +96,8 @@
   "gameResultLostCoins": "Ваша ставка {amount} ушла победителям.",
   "gameResultFreeGame": "Это была бесплатная игра, монеты не списывались.",
   "gameResultWinners": "Победители",
+  "gameResultLosers": "Проигравшие",
+  "gameResultLeft": "Вышел",
   "gamePlayAgain": "Сыграть ещё",
   "gameBackToLobby": "К играм",
   "gameMyRole": "Моя роль",

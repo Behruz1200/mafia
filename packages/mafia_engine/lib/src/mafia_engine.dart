@@ -611,6 +611,7 @@ class MafiaEngine implements GameEngine {
         winners: winners,
         losers: losers,
         forfeited: forfeited,
+        roles: {for (final p in pub.players) p.userId: s.roles[p.userId]!},
         endedAt: now,
       ),
     );

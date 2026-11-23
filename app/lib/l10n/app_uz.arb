@@ -96,6 +96,8 @@
   "gameResultLostCoins": "Tikkan {amount} g‘oliblarga o‘tdi.",
   "gameResultFreeGame": "Bu bepul o‘yin edi, tangalar o‘zgarmadi.",
   "gameResultWinners": "G‘oliblar",
+  "gameResultLosers": "Yutqazganlar",
+  "gameResultLeft": "Chiqib ketdi",
   "gamePlayAgain": "Yana o‘ynash",
   "gameBackToLobby": "O‘yinlarga qaytish",
   "gameMyRole": "Mening rolim",

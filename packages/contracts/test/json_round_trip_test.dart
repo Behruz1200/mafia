@@ -107,12 +107,17 @@ void main() {
       winners: const ['a'],
       losers: const ['b', 'c'],
       forfeited: const ['c'],
+      roles: const {'a': Role.don, 'b': Role.detective, 'c': Role.civilian},
       endedAt: fixtureNow,
     );
     expect(
       MatchResult.fromJson(wire(result.toJson())).toJson(),
       result.toJson(),
     );
+    expect(MatchResult.fromJson(wire(result.toJson())).roles['a'], Role.don);
+    // Results from older servers carry no roles.
+    final old = result.toJson()..remove('roles');
+    expect(MatchResult.fromJson(wire(old)).roles, isEmpty);
 
     final entry = LedgerEntry(
       id: '1',
