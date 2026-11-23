@@ -86,6 +86,16 @@ class _CallControlsState extends ConsumerState<CallControls> {
       _ when local.mediaBlocked => t.callMediaBlocked,
       _ when mafiaCall => t.callMafiaPrivate,
       _ when game?.phase == GamePhase.night => t.callNightMuted,
+      _ when game?.phase == GamePhase.lastWord && game?.lastWordBy == me =>
+        t.callLastWordYou,
+      _ when game?.phase == GamePhase.lastWord && game?.lastWordBy != null =>
+        t.callLastWordListening(
+          game!.players
+                  .where((p) => p.userId == game.lastWordBy)
+                  .firstOrNull
+                  ?.displayName ??
+              '…',
+        ),
       _ when iAmOut => t.callYouAreOut,
       _ when !local.connected => t.callConnecting,
       _ => null,

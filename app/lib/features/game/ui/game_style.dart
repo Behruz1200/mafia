@@ -47,6 +47,14 @@ abstract final class GameStyle {
     stops: [0, 0.7],
   );
 
+  /// A warm spotlight for the player saying their last word.
+  static const lastWordGradient = RadialGradient(
+    center: Alignment(0, -1.15),
+    radius: 1.3,
+    colors: [Color(0xFF4A2C1A), Palette.background],
+    stops: [0, 0.7],
+  );
+
   static Color teamColor(Team team) => switch (team) {
     Team.town => town,
     Team.mafia => crimson,
@@ -69,6 +77,7 @@ abstract final class GameStyle {
   static Gradient backgroundFor(GamePhase? phase) => switch (phase) {
     GamePhase.night => nightGradient,
     GamePhase.voting => votingGradient,
+    GamePhase.lastWord => lastWordGradient,
     GamePhase.lobby || null => lobbyGradient,
     _ => dayGradient,
   };

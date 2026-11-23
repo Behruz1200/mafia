@@ -22,6 +22,7 @@ class PhaseHeader extends StatelessWidget {
       GamePhase.day => (Icons.wb_sunny_rounded, GameStyle.sun),
       GamePhase.voting => (Icons.how_to_vote_rounded, GameStyle.crimson),
       GamePhase.roleReveal => (Icons.style_rounded, GameStyle.gold),
+      GamePhase.lastWord => (Icons.record_voice_over_rounded, GameStyle.gold),
       _ => (Icons.flag_rounded, GameStyle.gold),
     };
     return Container(

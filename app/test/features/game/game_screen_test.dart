@@ -2,6 +2,7 @@ import 'package:contracts/contracts.dart';
 import 'package:contracts/testing.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mafia_app/features/game/game_screen.dart';
+import 'package:mafia_app/features/game/widgets/chat_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'harness.dart';
@@ -12,6 +13,8 @@ PublicGameState _state(
   List<UserId> skipVotes = const [],
   List<PublicEvent> log = const [],
   Team? winner,
+  UserId? lastWordBy,
+  Set<UserId> dead = const {},
 }) {
   final s = samplePublicState(phase: phase);
   return PublicGameState(
@@ -19,11 +22,15 @@ PublicGameState _state(
     matchId: s.matchId,
     phase: phase,
     round: 1,
-    players: s.players,
+    players: [
+      for (final p in s.players)
+        dead.contains(p.userId) ? p.copyWith(isAlive: false) : p,
+    ],
     votes: votes,
     skipVotes: skipVotes,
     log: log,
     winner: winner,
+    lastWordBy: lastWordBy,
   );
 }
 
@@ -261,5 +268,179 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Refreshed'), findsOneWidget);
     expect(find.text('K7QF2'), findsOneWidget);
+  });
+
+  group('chat', () {
+    Future<void> scrollToChat(WidgetTester tester) async {
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('chat-input')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+    }
+
+    testWidgets('in the day everyone can write to the table', (tester) async {
+      final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+      repo
+        ..emitPublic(_state(GamePhase.day))
+        ..emitPrivate(samplePrivateState());
+      await tester.pumpAndSettle();
+      await scrollToChat(tester);
+
+      expect(find.text('Everyone'), findsOneWidget);
+      expect(find.text('Message everyone…'), findsOneWidget);
+      await tester.enterText(find.byKey(const ValueKey('chat-input')), ' hi! ');
+      await tester.tap(find.byKey(const ValueKey('chat-send')));
+      await tester.pumpAndSettle();
+      expect(repo.chat.single.text, 'hi!');
+      expect(find.textContaining('hi!'), findsOneWidget);
+    });
+
+    testWidgets('the town cannot write at night', (tester) async {
+      final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+      repo
+        ..emitPublic(_state(GamePhase.night))
+        ..emitPrivate(samplePrivateState());
+      await tester.pumpAndSettle();
+      await scrollToChat(tester);
+
+      expect(
+        find.text('The town sleeps. Chat opens in the morning.'),
+        findsOneWidget,
+      );
+      final field = tester.widget<TextField>(
+        find.byKey(const ValueKey('chat-input')),
+      );
+      expect(field.enabled, isFalse);
+      expect(find.byKey(const ValueKey('react-👍')), findsNothing);
+    });
+
+    testWidgets('the Mafia see their private chat at night', (tester) async {
+      final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+      repo
+        ..emitPublic(_state(GamePhase.night))
+        ..emitPrivate(
+          const PrivatePlayerState(
+            userId: 'user_0',
+            role: Role.mafia,
+            teammates: ['user_3'],
+            allowedActions: ['nightKill'],
+          ),
+        )
+        ..emitChat(
+          ChatMessage(
+            id: 'c1',
+            roomId: 'room_1',
+            matchId: 'match_1',
+            senderId: 'user_3',
+            senderName: 'Jasur',
+            text: 'take Kamola',
+            channel: ChatChannel.mafia,
+            sentAt: fixtureNow,
+          ),
+        );
+      await tester.pumpAndSettle();
+      await scrollToChat(tester);
+
+      expect(find.text('Mafia only'), findsOneWidget);
+      expect(find.text('Only the Mafia sees this…'), findsOneWidget);
+      expect(find.textContaining('take Kamola'), findsOneWidget);
+    });
+
+    testWidgets('an emoji pops up on my seat for a moment', (tester) async {
+      final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+      repo
+        ..emitPublic(_state(GamePhase.day))
+        ..emitPrivate(samplePrivateState());
+      await tester.pumpAndSettle();
+      await scrollToChat(tester);
+
+      await tester.tap(find.byKey(const ValueKey('react-😂')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(ReactionPop), findsOneWidget);
+      await tester.pump(const Duration(seconds: 3));
+      expect(find.byType(ReactionPop), findsNothing);
+    });
+  });
+
+  group('last word', () {
+    testWidgets('the eliminated player speaks, types and ends it', (
+      tester,
+    ) async {
+      final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+      repo
+        ..emitPublic(
+          _state(
+            GamePhase.lastWord,
+            lastWordBy: 'user_0',
+            dead: {'user_0'},
+            log: const [
+              PublicEvent(
+                round: 1,
+                phase: GamePhase.lastWord,
+                message: 'lastWord',
+                userId: 'user_0',
+                text: 'Jasur is lying',
+              ),
+            ],
+          ),
+        )
+        ..emitPrivate(
+          const PrivatePlayerState(
+            userId: 'user_0',
+            role: Role.civilian,
+            allowedActions: ['lastWord', 'skipPhase'],
+          ),
+        );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('last-word-stage')), findsOneWidget);
+      expect(find.text('“Jasur is lying”'), findsOneWidget);
+      expect(
+        find.text(
+          'Your last word. Talk on camera or type it below, then tap Done.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Last word'), findsWidgets);
+
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('chat-input')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Type your last word…'), findsOneWidget);
+      await tester.enterText(find.byKey(const ValueKey('chat-input')), 'bye');
+      await tester.tap(find.byKey(const ValueKey('chat-send')));
+      await tester.pumpAndSettle();
+      expect(repo.chat.single.text, 'bye');
+
+      await tester.tap(find.byKey(const ValueKey('last-word-done')));
+      await tester.pump();
+      expect(repo.sent.single, isA<SkipPhase>());
+    });
+
+    testWidgets('everyone else listens and cannot write', (tester) async {
+      final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+      repo
+        ..emitPublic(
+          _state(GamePhase.lastWord, lastWordBy: 'user_4', dead: {'user_4'}),
+        )
+        ..emitPrivate(samplePrivateState());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Kamola is saying a last word. Listen.'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('last-word-done')), findsNothing);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('chat-input')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Only Kamola can write now.'), findsOneWidget);
+    });
   });
 }

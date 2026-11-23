@@ -23,6 +23,12 @@ final myStateProvider = StreamProvider.autoDispose
       (ref, id) => ref.watch(roomRepositoryProvider).watchMyState(id),
     );
 
+/// The room's chat as I may read it, oldest first.
+final chatProvider = StreamProvider.autoDispose
+    .family<List<ChatMessage>, RoomId>(
+      (ref, id) => ref.watch(roomRepositoryProvider).watchChat(id),
+    );
+
 final matchEndProvider = StreamProvider.autoDispose.family<MatchResult, RoomId>(
   (ref, id) => ref.watch(roomRepositoryProvider).watchMatchEnd(id),
 );
@@ -100,6 +106,13 @@ class GameActions {
   /// server ends it only when every living player agrees.
   Future<void> skipTimer({required bool skip}) =>
       _send(SkipPhase(actorId: me, skip: skip));
+
+  /// A chat message; the server decides who reads it. During my last
+  /// word it becomes part of that last word.
+  Future<void> sendChat(String text) => repo.sendChat(roomId, text);
+
+  /// Pops one of `ChatRules.reactions` on my seat.
+  Future<void> react(String emoji) => repo.sendReaction(roomId, emoji);
 
   Future<void> leave() => repo.leave(roomId);
 

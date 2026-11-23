@@ -6,12 +6,13 @@ import '../../../core/theme.dart';
 import '../../call/call_view.dart';
 import '../ui/game_style.dart';
 import '../ui/game_text.dart';
+import 'chat_panel.dart';
 import 'phase_header.dart';
 import 'player_table.dart';
 import 'role_card.dart';
 import 'skip_timer_bar.dart';
 
-/// The table during a match: night, day and voting.
+/// The table during a match: night, day, voting and last words.
 ///
 /// Holds only what the player is picking right now. Everything else comes
 /// from the server's states; the buttons shown follow
@@ -141,6 +142,9 @@ class _MatchViewState extends State<MatchView> {
     final canSkip =
         widget.onSkipTimer != null &&
         (widget.private?.allowedActions ?? const []).contains('skipPhase');
+    final lastWord = s.phase == GamePhase.lastWord;
+    final speaker = lastWord ? s.lastWordBy : null;
+    final iSpeak = speaker != null && speaker == widget.me;
 
     return Column(
       children: [
@@ -164,37 +168,69 @@ class _MatchViewState extends State<MatchView> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             children: [
-              PlayerTable(
-                players: s.players,
-                me: widget.me,
-                private: widget.private,
-                votes: s.phase == GamePhase.voting ? s.votes : const {},
-                selectable: _sending ? const {} : targets,
-                selected: _selected,
-                onSelect: (u) => setState(() => _selected = u),
-                // Stream 3 (video) owns SeatVideo: each seat is that
-                // player's camera.
-                face: (id, placeholder) =>
-                    SeatVideo(userId: id, placeholder: placeholder),
+              if (speaker != null) ...[
+                _LastWordStage(
+                  name: iSpeak ? t.gameYou : _name(speaker),
+                  lines: [
+                    for (final e in s.log)
+                      if (e.message == 'lastWord' &&
+                          e.userId == speaker &&
+                          e.text != null)
+                        e.text!,
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+              SeatReactions(
+                roomId: widget.roomId,
+                builder: (context, showing) => PlayerTable(
+                  players: s.players,
+                  me: widget.me,
+                  private: widget.private,
+                  votes: s.phase == GamePhase.voting ? s.votes : const {},
+                  selectable: _sending ? const {} : targets,
+                  selected: _selected,
+                  onSelect: (u) => setState(() => _selected = u),
+                  // Stream 3 (video) owns SeatVideo: each seat is that
+                  // player's camera.
+                  face: (id, placeholder) =>
+                      SeatVideo(userId: id, placeholder: placeholder),
+                  overlays: {
+                    for (final e in showing.entries)
+                      e.key: ReactionPop(emoji: e.value),
+                  },
+                  highlight: speaker,
+                ),
               ),
               const SizedBox(height: 14),
               _Prompt(
                 text: _promptText(t, action),
                 latest: events.firstOrNull,
-                icon: !_meAlive
+                icon: lastWord
+                    ? Icons.record_voice_over_rounded
+                    : !_meAlive
                     ? Icons.visibility_rounded
                     : sleeping
                     ? Icons.bedtime_rounded
                     : action != null
                     ? Icons.touch_app_rounded
                     : Icons.forum_rounded,
-                color: !_meAlive
+                color: lastWord
+                    ? GameStyle.gold
+                    : !_meAlive
                     ? GameStyle.muted
                     : isNight
                     ? GameStyle.moon
                     : action != null
                     ? GameStyle.crimson
                     : GameStyle.gold,
+              ),
+              const SizedBox(height: 12),
+              ChatPanel(
+                roomId: widget.roomId,
+                state: s,
+                private: widget.private,
+                me: widget.me,
               ),
               if (events.length > 1) ...[
                 const SizedBox(height: 12),
@@ -204,8 +240,13 @@ class _MatchViewState extends State<MatchView> {
           ),
         ),
         _BottomBar(
-          action: action == null
-              ? (canSkip
+          action: iSpeak && canSkip
+              ? _DoneButton(
+                  text: t.gameLastWordDone,
+                  onPressed: () => widget.onSkipTimer!(true),
+                )
+              : action == null
+              ? (canSkip && !lastWord
                     ? SkipTimerBar(
                         state: s,
                         me: widget.me,
@@ -235,6 +276,12 @@ class _MatchViewState extends State<MatchView> {
   }
 
   String _promptText(AppLocalizations t, String? action) {
+    final s = widget.state;
+    if (s.phase == GamePhase.lastWord && s.lastWordBy != null) {
+      return s.lastWordBy == widget.me
+          ? t.gameLastWordYou
+          : t.gameLastWordListen(_name(s.lastWordBy!));
+    }
     if (!_meAlive) return t.gameDeadSpectator;
     if (action != null && _done != null) return t.gameActionSent;
     return switch ((widget.state.phase, action)) {
@@ -246,6 +293,104 @@ class _MatchViewState extends State<MatchView> {
       (GamePhase.day, _) => t.gameDayPrompt,
       _ => t.gameActionSent,
     };
+  }
+}
+
+/// The player saying their last word, with what they typed so far.
+class _LastWordStage extends StatelessWidget {
+  const _LastWordStage({required this.name, required this.lines});
+
+  final String name;
+  final List<String> lines;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    return Container(
+      key: const ValueKey('last-word-stage'),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(GameStyle.radius),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            GameStyle.gold.withValues(alpha: 0.22),
+            GameStyle.crimson.withValues(alpha: 0.12),
+          ],
+        ),
+        border: Border.all(
+          color: GameStyle.gold.withValues(alpha: 0.6),
+          width: 1.5,
+        ),
+        boxShadow: GameStyle.glow(GameStyle.gold.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 8,
+        children: [
+          Row(
+            spacing: 8,
+            children: [
+              const Icon(
+                Icons.record_voice_over_rounded,
+                color: GameStyle.gold,
+                size: 20,
+              ),
+              Text(
+                t.gameLastWordTag.toUpperCase(),
+                style: const TextStyle(
+                  color: GameStyle.gold,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+          Text(name, style: GameStyle.display(24)),
+          for (final l in lines)
+            Text(
+              '“$l”',
+              style: const TextStyle(
+                fontSize: 16,
+                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Done" for the player ending their own last word.
+class _DoneButton extends StatelessWidget {
+  const _DoneButton({required this.text, required this.onPressed});
+
+  final String text;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: GameStyle.glow(GameStyle.gold),
+      ),
+      child: FilledButton.icon(
+        key: const ValueKey('last-word-done'),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size.fromHeight(52),
+          backgroundColor: GameStyle.gold,
+          foregroundColor: Palette.background,
+        ),
+        onPressed: onPressed,
+        icon: const Icon(Icons.check_rounded),
+        label: Text(text),
+      ),
+    );
   }
 }
 

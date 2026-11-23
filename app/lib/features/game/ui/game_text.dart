@@ -33,6 +33,7 @@ extension GameText on AppLocalizations {
     GamePhase.day => phaseDay,
     GamePhase.voting => phaseVoting,
     GamePhase.ended => gamePhaseEnded,
+    GamePhase.lastWord => phaseLastWord,
   };
 
   /// One log line, or null for keys this version of the app does not know
@@ -49,6 +50,7 @@ extension GameText on AppLocalizations {
       'nobodyDied' => gameEventNobodyDied,
       'voteTied' => gameEventVoteTied,
       'phaseSkipped' => gameEventPhaseSkipped,
+      'lastWord' when e.text != null => gameEventLastWord(name, e.text!),
       _ => null,
     };
   }

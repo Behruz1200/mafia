@@ -25,6 +25,8 @@ class PlayerTable extends StatelessWidget {
     this.selected,
     this.onSelect,
     this.face,
+    this.overlays = const {},
+    this.highlight,
   });
 
   final List<Player> players;
@@ -35,6 +37,12 @@ class PlayerTable extends StatelessWidget {
   final UserId? selected;
   final ValueChanged<UserId>? onSelect;
   final SeatFace? face;
+
+  /// Drawn over a seat, e.g. an emoji the player just popped.
+  final Map<UserId, Widget> overlays;
+
+  /// A seat to ring in gold, e.g. the player saying their last word.
+  final UserId? highlight;
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +78,8 @@ class PlayerTable extends StatelessWidget {
               selectable: selectable.contains(p.userId),
               selected: selected == p.userId,
               face: face,
+              overlay: overlays[p.userId],
+              highlighted: highlight == p.userId,
               onTap: selectable.contains(p.userId) && onSelect != null
                   ? () => onSelect!(p.userId)
                   : null,
@@ -94,6 +104,8 @@ class SeatTile extends StatelessWidget {
     this.selected = false,
     this.face,
     this.onTap,
+    this.overlay,
+    this.highlighted = false,
   });
 
   final Player player;
@@ -106,6 +118,10 @@ class SeatTile extends StatelessWidget {
   final bool selected;
   final SeatFace? face;
   final VoidCallback? onTap;
+  final Widget? overlay;
+
+  /// Gold ring and live camera even when out (their last word).
+  final bool highlighted;
 
   static const _radius = 18.0;
 
@@ -140,7 +156,9 @@ class SeatTile extends StatelessWidget {
       ),
     );
 
-    final (ringColor, ringWidth) = selected
+    final (ringColor, ringWidth) = highlighted
+        ? (Palette.gold, 3.0)
+        : selected
         ? (Colors.white, 3.0)
         : selectable
         ? (Colors.white.withValues(alpha: 0.45), 1.5)
@@ -172,11 +190,11 @@ class SeatTile extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             child: Opacity(
-              opacity: dead ? 0.55 : 1,
+              opacity: dead && !highlighted ? 0.55 : 1,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (face != null && !dead)
+                  if (face != null && (!dead || highlighted))
                     face!(player.userId, placeholder)
                   else
                     placeholder,
@@ -191,7 +209,7 @@ class SeatTile extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (dead)
+                  if (dead && !highlighted)
                     const Center(
                       child: Icon(
                         Icons.close_rounded,
@@ -278,6 +296,7 @@ class SeatTile extends StatelessWidget {
                       ],
                     ),
                   ),
+                  ?overlay,
                   // The ring sits on top so video never covers it.
                   if (ringWidth > 0)
                     IgnorePointer(
