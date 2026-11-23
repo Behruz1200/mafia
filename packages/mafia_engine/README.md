@@ -19,7 +19,8 @@ final mine = engine.privateView(state, userId); // send on their socket only
 
 **Deal.** At least 4 players. Unless the host fixes a deal in
 `RoomSettings.roleCounts`, the engine deals one Mafia member per three
-players; from two Mafia members up, one is the Don. There is a Detective from
+players, but only one up to 6 players; from two Mafia members up, one is the
+Don. There is a Detective from
 4 players and a Doctor from 5; everyone else is a Civilian. The deal is
 shuffled from the match seed, so the same seed always deals the same way.
 
@@ -27,7 +28,7 @@ shuffled from the match seed, so the same seed always deals the same way.
 | ---: | ---: | ---: | ---: | ---: | ---: |
 | 4 | 0 | 1 | 1 | 0 | 2 |
 | 5 | 0 | 1 | 1 | 1 | 2 |
-| 6 | 1 | 1 | 1 | 1 | 2 |
+| 6 | 0 | 1 | 1 | 1 | 3 |
 | 7 | 1 | 1 | 1 | 1 | 3 |
 | 8 | 1 | 1 | 1 | 1 | 4 |
 | 9 to 11 | 1 | 2 | 1 | 1 | 4 to 6 |

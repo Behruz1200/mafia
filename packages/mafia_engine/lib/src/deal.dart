@@ -7,15 +7,17 @@ const minPlayersForMatch = 4;
 
 /// The deal used when the host does not fix one.
 ///
-/// One Mafia member for every three players (at least one). From two Mafia
-/// members up, one of them is the Don. A Detective from 4 players and a
+/// One Mafia member for every three players, but only one up to 6 players
+/// (two Mafia against four town ends most 6-player games on day one). From
+/// two Mafia members up, one of them is the Don. A Detective from 4 players and a
 /// Doctor from 5. Everyone else is a Civilian.
 ///
 /// | Players | Don | Mafia | Detective | Doctor | Civilian |
 /// | ---: | ---: | ---: | ---: | ---: | ---: |
 /// | 4 | 0 | 1 | 1 | 0 | 2 |
 /// | 5 | 0 | 1 | 1 | 1 | 2 |
-/// | 6 | 1 | 1 | 1 | 1 | 2 |
+/// | 6 | 0 | 1 | 1 | 1 | 3 |
+/// | 7 | 1 | 1 | 1 | 1 | 3 |
 /// | 8 | 1 | 1 | 1 | 1 | 4 |
 /// | 9 | 1 | 2 | 1 | 1 | 4 |
 /// | 12 | 1 | 3 | 1 | 1 | 6 |
@@ -27,7 +29,7 @@ Map<Role, int> defaultRoleCounts(int players) {
       'need at least $minPlayersForMatch players',
     );
   }
-  final mafiaTeam = players ~/ 3;
+  final mafiaTeam = players <= 6 ? 1 : players ~/ 3;
   final don = mafiaTeam >= 2 ? 1 : 0;
   final counts = <Role, int>{
     Role.don: don,
