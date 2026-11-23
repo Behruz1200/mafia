@@ -10,6 +10,8 @@ class EngineMemory {
     this.checks = const {},
     this.donChecks = const {},
     this.forfeited = const [],
+    this.nights = const [],
+    this.days = const [],
   });
 
   /// Who the Doctor protected last night (they cannot pick them again
@@ -28,18 +30,27 @@ class EngineMemory {
   /// Players who left while alive, in the order they left.
   final List<UserId> forfeited;
 
+  /// What happened each resolved night and vote, for the end-of-match
+  /// story. Only revealed once the match is over.
+  final List<StoryNight> nights;
+  final List<StoryVote> days;
+
   EngineMemory copyWith({
     UserId? Function()? lastHeal,
     bool? selfHealUsed,
     Map<UserId, Map<UserId, Team>>? checks,
     Map<UserId, Map<UserId, bool>>? donChecks,
     List<UserId>? forfeited,
+    List<StoryNight>? nights,
+    List<StoryVote>? days,
   }) => EngineMemory(
     lastHeal: lastHeal == null ? this.lastHeal : lastHeal(),
     selfHealUsed: selfHealUsed ?? this.selfHealUsed,
     checks: checks ?? this.checks,
     donChecks: donChecks ?? this.donChecks,
     forfeited: forfeited ?? this.forfeited,
+    nights: nights ?? this.nights,
+    days: days ?? this.days,
   );
 
   Json toJson() => {
@@ -53,6 +64,8 @@ class EngineMemory {
       for (final MapEntry(:key, :value) in donChecks.entries) key: value,
     },
     'forfeited': forfeited,
+    'nights': [for (final n in nights) n.toJson()],
+    'days': [for (final d in days) d.toJson()],
   };
 
   factory EngineMemory.fromJson(Json j) => EngineMemory(
@@ -74,6 +87,14 @@ class EngineMemory {
     },
     forfeited: [
       for (final e in (j['forfeited'] as List? ?? const [])) e as String,
+    ],
+    nights: [
+      for (final e in (j['nights'] as List? ?? const []))
+        StoryNight.fromJson(e as Json),
+    ],
+    days: [
+      for (final e in (j['days'] as List? ?? const []))
+        StoryVote.fromJson(e as Json),
     ],
   );
 }

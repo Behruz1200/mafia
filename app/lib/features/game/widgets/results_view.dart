@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../ui/game_style.dart';
 import '../ui/game_text.dart';
+import '../story/story_view.dart';
 
 /// After the match: who won, what it meant for my coins, and what next.
 ///
@@ -145,6 +146,10 @@ class ResultsView extends StatelessWidget {
               ],
             ),
           ),
+        if (result?.story != null && !cancelled) ...[
+          const SizedBox(height: 16),
+          MatchStoryButton(state: state, result: result!, me: me),
+        ],
         if (roles.isNotEmpty) ...[
           for (final (title, group) in [
             (t.gameResultWinners, winnersList),

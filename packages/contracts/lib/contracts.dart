@@ -14,6 +14,7 @@ export 'src/models/game_action.dart';
 export 'src/models/game_state.dart';
 export 'src/models/ids.dart';
 export 'src/models/match_result.dart';
+export 'src/models/match_story.dart';
 export 'src/models/phase.dart';
 export 'src/models/player.dart';
 export 'src/models/role.dart';

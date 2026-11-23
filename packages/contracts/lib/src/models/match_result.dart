@@ -1,5 +1,6 @@
 import '../json.dart';
 import 'ids.dart';
+import 'match_story.dart';
 import 'role.dart';
 
 /// The match-end event. The game server produces it once, and the wallet
@@ -15,6 +16,7 @@ class MatchResult {
     this.winningTeam,
     this.forfeited = const [],
     this.roles = const {},
+    this.story,
   });
 
   final RoomId roomId;
@@ -35,6 +37,10 @@ class MatchResult {
   /// Every player's role, revealed only now that the match is over. Empty
   /// for a cancelled match and for results from older servers.
   final Map<UserId, Role> roles;
+
+  /// What happened each night and day, for the end-of-match cartoon. Null
+  /// for a cancelled match and for results from older servers.
+  final MatchStory? story;
   final DateTime endedAt;
 
   bool get cancelled => winningTeam == null;
@@ -48,6 +54,7 @@ class MatchResult {
     'losers': losers,
     'forfeited': forfeited,
     'roles': {for (final e in roles.entries) e.key: e.value.name},
+    'story': story?.toJson(),
     'endedAt': encodeTime(endedAt),
   };
 
@@ -65,6 +72,7 @@ class MatchResult {
       for (final e in ((j['roles'] as Map?) ?? const {}).entries)
         e.key as String: ?Role.values.asNameMap()[e.value],
     },
+    story: j['story'] == null ? null : MatchStory.fromJson(j['story']! as Json),
     endedAt: decodeTime(j['endedAt']),
   );
 }
