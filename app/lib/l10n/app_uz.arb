@@ -110,6 +110,8 @@
   "callMafiaPrivate": "Mafiya suhbati: sizni faqat jamoangiz ko‘radi va eshitadi",
   "callYouAreOut": "Siz o‘yindan chiqdingiz. Kuzatishingiz mumkin, lekin gapira olmaysiz.",
   "callMediaBlocked": "Telefon sozlamalarida Mafia uchun kamera va mikrofonga ruxsat bering",
+  "callMediaBlockedWeb": "Brauzerda bu saytga kamera va mikrofondan foydalanishga ruxsat bering, keyin sahifani yangilang",
+  "callTapForSound": "Boshqa o'yinchilarni eshitish uchun shu yerga bosing",
   "callConnecting": "Videoga ulanmoqda…",
   "callYou": "Siz",
   "authPhoneLabel": "Telefon raqam",

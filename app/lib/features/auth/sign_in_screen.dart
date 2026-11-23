@@ -147,8 +147,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    // Apple sign-in is set up for the iPhone app only, not for the browser
+    // (an iPhone browser also reports iOS).
     final showApple =
-        widget.showApple ?? defaultTargetPlatform == TargetPlatform.iOS;
+        widget.showApple ??
+        (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS);
 
     final status = [
       if (_error != null)

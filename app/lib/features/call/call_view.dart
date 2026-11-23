@@ -1,4 +1,5 @@
 import 'package:contracts/contracts.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:livekit_client/livekit_client.dart' as lk;
 import 'package:material_ui/material_ui.dart';
@@ -78,7 +79,10 @@ class _CallControlsState extends ConsumerState<CallControls> {
         ) &&
         game?.phase != GamePhase.ended;
     final mafiaCall = local.activeChannel == CallChannel.mafia;
+    final soundTap = local.audioBlocked && call is LiveKitCallController;
     final banner = switch (()) {
+      _ when local.audioBlocked => t.callTapForSound,
+      _ when local.mediaBlocked && kIsWeb => t.callMediaBlockedWeb,
       _ when local.mediaBlocked => t.callMediaBlocked,
       _ when mafiaCall => t.callMafiaPrivate,
       _ when game?.phase == GamePhase.night => t.callNightMuted,
@@ -107,31 +111,45 @@ class _CallControlsState extends ConsumerState<CallControls> {
         Expanded(
           child: banner == null
               ? const SizedBox.shrink()
-              : Row(
-                  spacing: 8,
-                  children: [
-                    Icon(
-                      mafiaCall
-                          ? Icons.lock_rounded
-                          : game?.phase == GamePhase.night
-                          ? Icons.bedtime_rounded
-                          : Icons.info_outline_rounded,
-                      size: 18,
-                      color: mafiaCall ? Palette.accent : Palette.muted,
-                    ),
-                    Expanded(
-                      child: Text(
-                        banner,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: mafiaCall ? Palette.text : Palette.muted,
+              : GestureDetector(
+                  key: const ValueKey('call-banner'),
+                  behavior: HitTestBehavior.opaque,
+                  // Browsers play sound only after a tap; this is that tap.
+                  onTap: call is LiveKitCallController && soundTap
+                      ? call.startAudio
+                      : null,
+                  child: Row(
+                    spacing: 8,
+                    children: [
+                      Icon(
+                        soundTap
+                            ? Icons.volume_up_rounded
+                            : mafiaCall
+                            ? Icons.lock_rounded
+                            : game?.phase == GamePhase.night
+                            ? Icons.bedtime_rounded
+                            : Icons.info_outline_rounded,
+                        size: 18,
+                        color: soundTap || mafiaCall
+                            ? Palette.accent
+                            : Palette.muted,
+                      ),
+                      Expanded(
+                        child: Text(
+                          banner,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: soundTap || mafiaCall
+                                ? Palette.text
+                                : Palette.muted,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
         ),
         _toggle(

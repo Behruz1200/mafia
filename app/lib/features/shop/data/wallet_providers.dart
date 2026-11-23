@@ -7,10 +7,13 @@ import '../../../core/providers.dart';
 import 'http_wallet_repository.dart';
 import 'store_billing.dart';
 
-/// The phone's store. Null with fakes, and on Android until Google Play
-/// purchases land on the server.
+/// The phone's store. Null with fakes, in the browser (no store there, even
+/// on an iPhone), and on Android until Google Play purchases land on the
+/// server.
 final storeBillingProvider = Provider<StoreBilling?>((ref) {
-  if (AppConfig.useFakes || defaultTargetPlatform != TargetPlatform.iOS) {
+  if (AppConfig.useFakes ||
+      kIsWeb ||
+      defaultTargetPlatform != TargetPlatform.iOS) {
     return null;
   }
   return InAppPurchaseBilling(

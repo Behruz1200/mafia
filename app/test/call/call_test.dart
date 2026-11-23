@@ -277,6 +277,22 @@ void main() {
       );
       expect(button(tester, 'call-mic').onPressed, isNotNull);
     });
+
+    testWidgets('in a browser that holds back sound, it asks for a tap', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        game: GamePhase.day,
+        local: const LocalCallState(
+          connected: true,
+          canPublish: true,
+          activeChannel: CallChannel.table,
+          audioBlocked: true,
+        ),
+      );
+      expect(find.text('Tap here to hear the other players'), findsOne);
+    });
   });
 
   group('SeatVideo', () {

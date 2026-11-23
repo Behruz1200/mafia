@@ -133,3 +133,23 @@ jobs:
       - run: flutter pub get
       - working-directory: app
         run: flutter build ios --debug --no-codesign
+
+  web:
+    name: Web build (browser version, real server)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.50.1
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - working-directory: app
+        run: >-
+          flutter build web --release --no-web-resources-cdn
+          --dart-define=USE_FAKES=false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mafia-web
+          path: app/build/web/

@@ -131,7 +131,9 @@ class LiveKitCallController implements TableCallController {
       })
       ..on<lk.ParticipantPermissionsUpdatedEvent>(
         (_) => unawaited(_serial(_apply)),
-      );
+      )
+      // Browsers only: sound may wait for a tap (see [startAudio]).
+      ..on<lk.AudioPlaybackStatusChanged>((_) => unawaited(_serial(_apply)));
     room.addListener(_emit);
     _channels[grant.channel] = _Channel(room, grant, listener);
     try {
@@ -154,6 +156,15 @@ class LiveKitCallController implements TableCallController {
     _wantMic = on;
     await _apply();
   });
+
+  /// Starts other players' sound after the browser held it back. Call it
+  /// straight from a tap: browsers only allow it inside one.
+  Future<void> startAudio() async {
+    for (final c in [..._channels.values]) {
+      if (!c.room.canPlaybackAudio) await c.room.startAudio();
+    }
+    await _serial(_apply);
+  }
 
   @override
   Future<void> leaveChannel(CallChannel channel) => _serial(() async {
@@ -229,6 +240,7 @@ class LiveKitCallController implements TableCallController {
       activeChannel: plan.target,
       connected: _channels.values.any((c) => c.connected),
       mediaBlocked: blocked,
+      audioBlocked: _channels.values.any((c) => !c.room.canPlaybackAudio),
     );
     _emit();
   }
