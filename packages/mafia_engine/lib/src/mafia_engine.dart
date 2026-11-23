@@ -267,6 +267,36 @@ class MafiaEngine implements GameEngine {
     }
     mem = mem.copyWith(checks: checks, donChecks: donChecks);
 
+    // Remember the night for the end-of-match story.
+    mem = mem.copyWith(
+      nights: [
+        ...mem.nights,
+        StoryNight(
+          round: round,
+          target: killTarget,
+          shooters: [
+            for (final k in kills)
+              if (k.targetId == killTarget) k.actorId,
+          ],
+          doctorId: heal?.actorId,
+          healed: heal?.targetId,
+          saved: saved,
+          checks: [
+            for (final c in s.pendingNightActions.whereType<NightCheck>())
+              if (aliveId(c.actorId))
+                StoryCheck(
+                  checkerId: c.actorId,
+                  targetId: c.targetId,
+                  byDon: s.roles[c.actorId] == Role.don,
+                  found: s.roles[c.actorId] == Role.don
+                      ? s.roles[c.targetId] == Role.detective
+                      : s.roles[c.targetId]!.team == Team.mafia,
+                ),
+          ],
+        ),
+      ],
+    );
+
     var players = pub.players;
     final log = [...pub.log];
     if (killTarget != null && !saved) {
@@ -367,11 +397,15 @@ class MafiaEngine implements GameEngine {
       for (final e in tally.entries)
         if (e.value == top) e.key,
     ];
+    UserId? votedOut;
+    var tied = false;
     if (top == 0 || top <= skips) {
       log.add(_event(pub, EventKeys.nobodyVotedOut));
     } else if (leaders.length > 1) {
+      tied = true;
       log.add(_event(pub, EventKeys.voteTied));
     } else {
+      votedOut = leaders.single;
       players = _eliminate(players, leaders.single);
       log.add(
         PublicEvent(
@@ -384,9 +418,25 @@ class MafiaEngine implements GameEngine {
       );
     }
 
+    final mem = _memory(s);
     final afterVote = _copy(
       s,
       public: _pub(pub, players: players, log: log, votes: const {}),
+      memory: mem.copyWith(
+        days: [
+          ...mem.days,
+          StoryVote(
+            round: pub.round,
+            votes: {
+              for (final MapEntry(key: voter, value: target)
+                  in pub.votes.entries)
+                if (_player(s, voter)?.isAlive ?? false) voter: target,
+            },
+            votedOut: votedOut,
+            tied: tied,
+          ),
+        ],
+      ),
     );
     final winner = _winner(afterVote);
     if (winner != null) return _end(afterVote, winner, now);
@@ -572,7 +622,8 @@ class MafiaEngine implements GameEngine {
 
   Accepted _end(GameState s, Team winner, DateTime now) {
     final pub = s.public;
-    final forfeited = _memory(s).forfeited;
+    final mem = _memory(s);
+    final forfeited = mem.forfeited;
     final ended = _copy(
       s,
       public: _pub(
@@ -612,6 +663,7 @@ class MafiaEngine implements GameEngine {
         losers: losers,
         forfeited: forfeited,
         roles: {for (final p in pub.players) p.userId: s.roles[p.userId]!},
+        story: MatchStory(nights: mem.nights, days: mem.days),
         endedAt: now,
       ),
     );

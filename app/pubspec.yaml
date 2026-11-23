@@ -56,3 +56,8 @@ flutter:
           weight: 700
         - asset: assets/fonts/Unbounded-800.ttf
           weight: 800
+    # Comic lettering for the end-of-match story (Latin only; Cyrillic
+    # falls back to Unbounded).
+    - family: Bangers
+      fonts:
+        - asset: assets/fonts/Bangers-Regular.ttf

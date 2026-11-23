@@ -84,6 +84,15 @@ player who is already out can leave without forfeiting.
 `playerLeft`,
 `townWon`, `mafiaWon`. The app localises them.
 
+## The match story
+
+Each resolved night (the Mafia's target and who picked it, the Doctor's
+pick, whether it saved them, every check and its result) and each resolved
+vote (every vote, who was out, or a tie) is kept in the engine's memory.
+When the match ends it goes out as `MatchResult.story`, beside
+`MatchResult.roles`, and the app plays it as the end-of-match cartoon.
+It is never on the public state while the match runs.
+
 ## Rejection codes
 
 See `RejectCodes`: `wrong_phase`, `match_ended`, `not_host`,
