@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +13,7 @@ import '../../core/theme.dart';
 import '../../l10n/generated/app_localizations.dart';
 import 'auth_error_text.dart';
 import 'data/api.dart';
+import 'sign_in_art.dart';
 import 'widgets.dart';
 
 enum _Step { phone, code, setup }
@@ -148,149 +150,259 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     final showApple =
         widget.showApple ?? defaultTargetPlatform == TargetPlatform.iOS;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_step == _Step.setup ? t.authSetupTitle : t.signInTitle),
-      ),
-      extendBodyBehindAppBar: true,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(1.1, -1.05),
-            radius: 1.3,
-            colors: [Color(0xFF3D1650), Palette.background],
-            stops: [0, 0.75],
+    final status = [
+      if (_error != null)
+        Text(
+          _error!,
+          key: const Key('authError'),
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.error,
+            fontWeight: FontWeight.w700,
           ),
         ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: 16,
-                  children: [
-                    ...switch (_step) {
-                      _Step.phone => _phoneStep(t, showApple),
-                      _Step.code => _codeStep(t),
-                      _Step.setup => _setupStep(t),
-                    },
-                    if (_error != null)
-                      Text(
-                        _error!,
-                        key: const Key('authError'),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    if (_busy) const LinearProgressIndicator(),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+      if (_busy) const LinearProgressIndicator(),
+    ];
 
-  /// The logo and the game's question, over the first step.
-  Widget _hero(AppLocalizations t) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Column(
-        spacing: 16,
+    return Scaffold(
+      backgroundColor: Palette.background,
+      body: Stack(
         children: [
-          Container(
-            width: 96,
-            height: 96,
-            decoration: BoxDecoration(
-              color: Palette.accent,
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [
-                BoxShadow(
-                  color: Palette.accent.withValues(alpha: 0.45),
-                  blurRadius: 40,
-                  offset: const Offset(0, 14),
+          const Positioned.fill(child: SignInBackdrop()),
+          SafeArea(
+            child: CustomScrollView(
+              slivers: [
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 440),
+                      child: _step == _Step.phone
+                          ? _phoneLayout(t, showApple, status)
+                          : Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                spacing: 16,
+                                children: [
+                                  ...switch (_step) {
+                                    _Step.code => _codeStep(t),
+                                    _ => _setupStep(t),
+                                  },
+                                  ...status,
+                                ],
+                              ),
+                            ),
+                    ),
+                  ),
                 ),
               ],
             ),
-            child: const Icon(
-              Icons.theater_comedy,
-              size: 54,
-              color: Colors.white,
-            ),
-          ),
-          Text(
-            t.appTitle.toUpperCase(),
-            style: const TextStyle(
-              fontFamily: Palette.display,
-              fontWeight: FontWeight.w800,
-              fontSize: 40,
-              letterSpacing: 2,
-            ),
-          ),
-          Text(
-            t.lobbyTagline,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Palette.muted,
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
-            ),
           ),
         ],
       ),
     );
   }
 
-  List<Widget> _phoneStep(AppLocalizations t, bool showApple) {
+  /// The first screen: a hand of role cards, the logo, and a panel at the
+  /// bottom with the phone number and Apple.
+  Widget _phoneLayout(AppLocalizations t, bool showApple, List<Widget> status) {
     final digits = _phone.text.replaceAll(RegExp(r'\D'), '');
-    return [
-      _hero(t),
-      TextField(
-        key: const Key('phoneField'),
-        controller: _phone,
-        keyboardType: TextInputType.phone,
-        autofillHints: const [AutofillHints.telephoneNumberNational],
-        inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,
-          LengthLimitingTextInputFormatter(9),
+    // The cards get whatever height the logo and the panel leave, and are
+    // left out on short screens so the buttons stay in view.
+    final media = MediaQuery.of(context);
+    final fan = min(270.0, media.size.height - media.padding.vertical - 520);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 36),
+        if (fan >= 140) ...[
+          RoleCardFan(height: fan),
+          const SizedBox(height: 32),
         ],
-        decoration: InputDecoration(
-          labelText: t.authPhoneLabel,
-          prefixText: '$_prefix ',
-          hintText: '90 123 45 67',
-        ),
-        onChanged: (_) => setState(() {}),
-        onSubmitted: (_) => digits.length == 9 ? _sendCode() : null,
-      ),
-      FilledButton(
-        key: const Key('sendCode'),
-        onPressed: digits.length == 9 && !_busy ? _sendCode : null,
-        child: Text(t.authSendCode),
-      ),
-      if (showApple) ...[
         Text(
-          t.authOr,
+          t.appTitle.toUpperCase(),
           textAlign: TextAlign.center,
-          style: const TextStyle(color: Palette.muted),
+          style: const TextStyle(
+            fontFamily: Palette.display,
+            fontWeight: FontWeight.w800,
+            fontSize: 46,
+            height: 1,
+            letterSpacing: 4,
+          ),
         ),
-        OutlinedButton.icon(
-          key: const Key('appleSignIn'),
-          icon: const Icon(Icons.apple),
-          onPressed: _busy ? null : _apple,
-          label: Text(t.signInWithApple),
+        const SizedBox(height: 12),
+        Text(
+          t.lobbyTagline,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Palette.muted,
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+          ),
+        ),
+        const Spacer(),
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+          decoration: BoxDecoration(
+            color: Palette.surfaceSheet.withValues(alpha: 0.92),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            border: const Border(top: BorderSide(color: Palette.outlineSoft)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 14,
+            children: [
+              Text(
+                t.signInTitle,
+                style: const TextStyle(
+                  fontFamily: Palette.display,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                ),
+              ),
+              TextField(
+                key: const Key('phoneField'),
+                controller: _phone,
+                keyboardType: TextInputType.phone,
+                autofillHints: const [AutofillHints.telephoneNumberNational],
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(9),
+                ],
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1,
+                ),
+                decoration: InputDecoration(
+                  labelText: t.authPhoneLabel,
+                  hintText: '90 123 45 67',
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.only(left: 16, right: 10),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 8,
+                      children: [
+                        const UzFlag(),
+                        Text(
+                          _prefix,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Container(width: 1, height: 24, color: Palette.outline),
+                      ],
+                    ),
+                  ),
+                ),
+                onChanged: (_) => setState(() {}),
+                onSubmitted: (_) => digits.length == 9 ? _sendCode() : null,
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: digits.length == 9
+                      ? [
+                          BoxShadow(
+                            color: Palette.accent.withValues(alpha: 0.45),
+                            blurRadius: 28,
+                            offset: const Offset(0, 10),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: FilledButton(
+                  key: const Key('sendCode'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(56),
+                  ),
+                  onPressed: digits.length == 9 && !_busy ? _sendCode : null,
+                  child: Text(t.authSendCode),
+                ),
+              ),
+              if (showApple) ...[
+                Row(
+                  spacing: 12,
+                  children: [
+                    const Expanded(child: Divider()),
+                    Text(
+                      t.authOr,
+                      style: const TextStyle(
+                        color: Palette.muted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Expanded(child: Divider()),
+                  ],
+                ),
+                // Apple's own look: a white button with a black logo.
+                FilledButton.icon(
+                  key: const Key('appleSignIn'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                    minimumSize: const Size.fromHeight(56),
+                  ),
+                  icon: const Icon(Icons.apple, size: 24),
+                  onPressed: _busy ? null : _apple,
+                  label: Text(t.signInWithApple),
+                ),
+              ],
+              ...status,
+            ],
+          ),
         ),
       ],
-    ];
+    );
+  }
+
+  /// A step's big heading with a line under it.
+  Widget _heading(String title, String? subtitle, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 10,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: Palette.accent.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(icon, color: Palette.accent, size: 28),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: const TextStyle(
+              fontFamily: Palette.display,
+              fontWeight: FontWeight.w800,
+              fontSize: 26,
+              height: 1.15,
+            ),
+          ),
+          if (subtitle != null)
+            Text(
+              subtitle,
+              style: const TextStyle(
+                color: Palette.muted,
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                height: 1.4,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   List<Widget> _codeStep(AppLocalizations t) => [
-    Text(t.authCodeSentTo(_phoneE164), textAlign: TextAlign.center),
+    _heading(t.authCodeLabel, t.authCodeSentTo(_phoneE164), Icons.sms_rounded),
     TextField(
       key: const Key('codeField'),
       controller: _code,
@@ -302,8 +414,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         LengthLimitingTextInputFormatter(6),
       ],
       textAlign: TextAlign.center,
-      style: const TextStyle(fontSize: 28, letterSpacing: 8),
-      decoration: InputDecoration(labelText: t.authCodeLabel),
+      style: const TextStyle(
+        fontFamily: Palette.display,
+        fontSize: 30,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 14,
+      ),
+      decoration: const InputDecoration(
+        hintText: '••••••',
+        contentPadding: EdgeInsets.symmetric(vertical: 22),
+      ),
       onChanged: (v) {
         setState(() {});
         if (v.length == 6 && !_busy) _verify();
@@ -311,38 +431,50 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     ),
     FilledButton(
       key: const Key('verifyCode'),
+      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
       onPressed: _code.text.length == 6 && !_busy ? _verify : null,
       child: Text(t.authVerify),
     ),
-    TextButton(
-      onPressed: _resendIn > 0 || _busy ? null : _sendCode,
-      child: Text(_resendIn > 0 ? t.authResendIn(_resendIn) : t.authResend),
-    ),
-    TextButton(
-      onPressed: _busy
-          ? null
-          : () => setState(() {
-              _step = _Step.phone;
-              _error = null;
-            }),
-      child: Text(t.authChangeNumber),
+    Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      children: [
+        TextButton(
+          onPressed: _busy
+              ? null
+              : () => setState(() {
+                  _step = _Step.phone;
+                  _error = null;
+                }),
+          child: Text(t.authChangeNumber),
+        ),
+        TextButton(
+          onPressed: _resendIn > 0 || _busy ? null : _sendCode,
+          child: Text(_resendIn > 0 ? t.authResendIn(_resendIn) : t.authResend),
+        ),
+      ],
     ),
   ];
 
   List<Widget> _setupStep(AppLocalizations t) {
     final nameOk = _name.text.trim().length >= 2;
     return [
+      _heading(t.authSetupTitle, null, Icons.person_rounded),
       TextField(
         key: const Key('nameField'),
         controller: _name,
         maxLength: 24,
         textCapitalization: TextCapitalization.words,
+        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         decoration: InputDecoration(labelText: t.authNameLabel),
         onChanged: (_) => setState(() {}),
       ),
       OutlinedButton.icon(
         key: const Key('birthDateButton'),
-        icon: const Icon(Icons.cake_outlined),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(56),
+          alignment: Alignment.centerLeft,
+        ),
+        icon: const Icon(Icons.cake_rounded, color: Palette.gold),
         onPressed: _busy
             ? null
             : () async {
@@ -358,6 +490,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       Text(t.authBirthDateHint, style: Theme.of(context).textTheme.bodySmall),
       FilledButton(
         key: const Key('finishSetup'),
+        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
         onPressed: nameOk && _birthDate != null && !_busy ? _finishSetup : null,
         child: Text(t.authContinue),
       ),
