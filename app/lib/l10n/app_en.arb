@@ -113,6 +113,8 @@
   "@gameResultLostCoins": {"placeholders": {"amount": {"type": "String"}}},
   "gameResultFreeGame": "This was a free game, no coins changed hands.",
   "gameResultWinners": "Winners",
+  "gameResultLosers": "Losers",
+  "gameResultLeft": "Left",
   "gamePlayAgain": "Play again",
   "gameBackToLobby": "Back to games",
   "gameMyRole": "My role",

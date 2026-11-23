@@ -222,6 +222,7 @@ class DemoMatch {
         winningTeam: winner,
         winners: winners,
         losers: losers,
+        roles: {for (final p in _players) p.userId: _roles[p.userId]!},
         endedAt: DateTime.now().toUtc(),
       ),
     );

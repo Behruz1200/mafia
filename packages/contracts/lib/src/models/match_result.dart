@@ -14,6 +14,7 @@ class MatchResult {
     required this.endedAt,
     this.winningTeam,
     this.forfeited = const [],
+    this.roles = const {},
   });
 
   final RoomId roomId;
@@ -30,6 +31,10 @@ class MatchResult {
   /// Players who left mid-match. They lose their stake; they are also
   /// listed in [losers].
   final List<UserId> forfeited;
+
+  /// Every player's role, revealed only now that the match is over. Empty
+  /// for a cancelled match and for results from older servers.
+  final Map<UserId, Role> roles;
   final DateTime endedAt;
 
   bool get cancelled => winningTeam == null;
@@ -42,6 +47,7 @@ class MatchResult {
     'winners': winners,
     'losers': losers,
     'forfeited': forfeited,
+    'roles': {for (final e in roles.entries) e.key: e.value.name},
     'endedAt': encodeTime(endedAt),
   };
 
@@ -55,6 +61,11 @@ class MatchResult {
     winners: decodeStrings(j['winners']),
     losers: decodeStrings(j['losers']),
     forfeited: decodeStrings(j['forfeited']),
+    roles: {
+      for (final e in ((j['roles'] as Map?) ?? const {}).entries)
+        if (Role.values.asNameMap()[e.value] case final role?)
+          e.key as String: role,
+    },
     endedAt: decodeTime(j['endedAt']),
   );
 }
