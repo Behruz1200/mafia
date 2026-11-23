@@ -17,7 +17,8 @@ void main() {
       };
       expect(defaultRoleCounts(4), row(0, 1, 1, 0, 2));
       expect(defaultRoleCounts(5), row(0, 1, 1, 1, 2));
-      expect(defaultRoleCounts(6), row(1, 1, 1, 1, 2));
+      expect(defaultRoleCounts(6), row(0, 1, 1, 1, 3));
+      expect(defaultRoleCounts(7), row(1, 1, 1, 1, 3));
       expect(defaultRoleCounts(8), row(1, 1, 1, 1, 4));
       expect(defaultRoleCounts(9), row(1, 2, 1, 1, 4));
       expect(defaultRoleCounts(12), row(1, 3, 1, 1, 6));
