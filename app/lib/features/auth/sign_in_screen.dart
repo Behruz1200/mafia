@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../core/providers.dart';
 import '../../core/routes.dart';
+import '../../core/theme.dart';
 import '../../l10n/generated/app_localizations.dart';
 import 'auth_error_text.dart';
 import 'data/api.dart';
@@ -151,32 +152,43 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       appBar: AppBar(
         title: Text(_step == _Step.setup ? t.authSetupTitle : t.signInTitle),
       ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: 16,
-                children: [
-                  ...switch (_step) {
-                    _Step.phone => _phoneStep(t, showApple),
-                    _Step.code => _codeStep(t),
-                    _Step.setup => _setupStep(t),
-                  },
-                  if (_error != null)
-                    Text(
-                      _error!,
-                      key: const Key('authError'),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
+      extendBodyBehindAppBar: true,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(1.1, -1.05),
+            radius: 1.3,
+            colors: [Color(0xFF3D1650), Palette.background],
+            stops: [0, 0.75],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: 16,
+                  children: [
+                    ...switch (_step) {
+                      _Step.phone => _phoneStep(t, showApple),
+                      _Step.code => _codeStep(t),
+                      _Step.setup => _setupStep(t),
+                    },
+                    if (_error != null)
+                      Text(
+                        _error!,
+                        key: const Key('authError'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       ),
-                    ),
-                  if (_busy) const LinearProgressIndicator(),
-                ],
+                    if (_busy) const LinearProgressIndicator(),
+                  ],
+                ),
               ),
             ),
           ),
@@ -185,9 +197,60 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     );
   }
 
+  /// The logo and the game's question, over the first step.
+  Widget _hero(AppLocalizations t) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        spacing: 16,
+        children: [
+          Container(
+            width: 96,
+            height: 96,
+            decoration: BoxDecoration(
+              color: Palette.accent,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: Palette.accent.withValues(alpha: 0.45),
+                  blurRadius: 40,
+                  offset: const Offset(0, 14),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.theater_comedy,
+              size: 54,
+              color: Colors.white,
+            ),
+          ),
+          Text(
+            t.appTitle.toUpperCase(),
+            style: const TextStyle(
+              fontFamily: Palette.display,
+              fontWeight: FontWeight.w800,
+              fontSize: 40,
+              letterSpacing: 2,
+            ),
+          ),
+          Text(
+            t.lobbyTagline,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Palette.muted,
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   List<Widget> _phoneStep(AppLocalizations t, bool showApple) {
     final digits = _phone.text.replaceAll(RegExp(r'\D'), '');
     return [
+      _hero(t),
       TextField(
         key: const Key('phoneField'),
         controller: _phone,
@@ -211,7 +274,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         child: Text(t.authSendCode),
       ),
       if (showApple) ...[
-        Text(t.authOr, textAlign: TextAlign.center),
+        Text(
+          t.authOr,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Palette.muted),
+        ),
         OutlinedButton.icon(
           key: const Key('appleSignIn'),
           icon: const Icon(Icons.apple),

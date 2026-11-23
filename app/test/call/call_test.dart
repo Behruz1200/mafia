@@ -202,7 +202,7 @@ void main() {
     });
   });
 
-  group('CallView', () {
+  group('CallControls', () {
     Future<FakeTableCall> pump(
       WidgetTester tester, {
       required LocalCallState local,
@@ -222,7 +222,7 @@ void main() {
             locale: Locale('en'),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: CallView(roomId: 'room_1')),
+            home: Scaffold(body: CallControls(roomId: 'room_1')),
           ),
         ),
       );
@@ -233,9 +233,7 @@ void main() {
     IconButton button(WidgetTester tester, String key) =>
         tester.widget<IconButton>(find.byKey(ValueKey(key)));
 
-    testWidgets('shows everyone and toggles camera and mic in the day', (
-      tester,
-    ) async {
+    testWidgets('toggles camera and mic in the day', (tester) async {
       final call = await pump(
         tester,
         game: GamePhase.day,
@@ -245,9 +243,6 @@ void main() {
           activeChannel: CallChannel.table,
         ),
       );
-      expect(find.text('You'), findsOneWidget); // user_0 is signed in
-      expect(find.text('Bekzod'), findsOneWidget);
-
       await tester.tap(find.byKey(const ValueKey('call-camera')));
       await tester.tap(find.byKey(const ValueKey('call-mic')));
       expect(call.camera, isTrue);
@@ -281,6 +276,31 @@ void main() {
         findsOne,
       );
       expect(button(tester, 'call-mic').onPressed, isNotNull);
+    });
+  });
+
+  group('SeatVideo', () {
+    testWidgets('shows the placeholder while the camera is off', (
+      tester,
+    ) async {
+      final call = FakeTableCall()
+        ..people = const [CallParticipant(userId: 'user_1', isSpeaking: true)];
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [callControllerProvider.overrideWithValue(call)],
+          child: const MaterialApp(
+            home: SizedBox(
+              width: 90,
+              height: 120,
+              child: SeatVideo(userId: 'user_1', placeholder: Text('B')),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('B'), findsOneWidget);
+      // Talking: a ring around the seat.
+      expect(find.byType(DecoratedBox), findsOneWidget);
     });
   });
 }

@@ -83,7 +83,7 @@ void main() {
     final p = await profiles.watchMyProfile().first;
     expect(p!.displayName, 'Shahzoda');
     expect(p.hasBirthDate, isTrue);
-    expect(find.text('Games'), findsOneWidget); // the lobby
+    expect(find.text('Quick match'), findsOneWidget); // the lobby
     // The setup screen's own Continue/OK must not linger with a timer.
     await tester.pump(const Duration(minutes: 2));
   });
@@ -91,7 +91,7 @@ void main() {
   testWidgets('a returning player goes straight to the lobby', (tester) async {
     await pumpApp(tester, newPlayer: false);
     await enterPhoneAndCode(tester, '123456');
-    expect(find.text('Games'), findsOneWidget);
+    expect(find.text('Quick match'), findsOneWidget);
     await tester.pump(const Duration(minutes: 2));
   });
 

@@ -11,7 +11,6 @@ void main() {
     await tester.pumpWidget(const ProviderScope(child: MafiaApp()));
     await tester.pumpAndSettle();
 
-    expect(find.text('O‘yinlar'), findsOneWidget);
     expect(find.text('Tezkor o‘yin'), findsOneWidget);
     expect(find.text('1000 tanga'), findsOneWidget);
   });
@@ -25,7 +24,7 @@ void main() {
     await tester.pumpWidget(const ProviderScope(child: MafiaApp()));
     await tester.pumpAndSettle();
 
-    expect(find.text('O‘yinlar'), findsOneWidget);
+    expect(find.text('Tezkor o‘yin'), findsOneWidget);
   });
 
   testWidgets('shows Russian when the phone is in Russian', (tester) async {
@@ -35,6 +34,6 @@ void main() {
     await tester.pumpWidget(const ProviderScope(child: MafiaApp()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Игры'), findsOneWidget);
+    expect(find.text('Быстрая игра'), findsOneWidget);
   });
 }
