@@ -9,6 +9,7 @@ class LocalCallState {
     this.activeChannel,
     this.connected = false,
     this.mediaBlocked = false,
+    this.audioBlocked = false,
   });
 
   /// Actually sending video / audio right now.
@@ -27,6 +28,11 @@ class LocalCallState {
   /// The phone refused camera or mic access (Settings > Privacy).
   final bool mediaBlocked;
 
+  /// The browser will not play other players' sound until the player taps
+  /// something (autoplay rules, mostly iPhone Safari). Always false in the
+  /// phone apps.
+  final bool audioBlocked;
+
   LocalCallState copyWith({
     bool? cameraOn,
     bool? micOn,
@@ -35,6 +41,7 @@ class LocalCallState {
     bool clearChannel = false,
     bool? connected,
     bool? mediaBlocked,
+    bool? audioBlocked,
   }) => LocalCallState(
     cameraOn: cameraOn ?? this.cameraOn,
     micOn: micOn ?? this.micOn,
@@ -42,6 +49,7 @@ class LocalCallState {
     activeChannel: clearChannel ? null : activeChannel ?? this.activeChannel,
     connected: connected ?? this.connected,
     mediaBlocked: mediaBlocked ?? this.mediaBlocked,
+    audioBlocked: audioBlocked ?? this.audioBlocked,
   );
 
   @override
@@ -52,7 +60,8 @@ class LocalCallState {
       other.canPublish == canPublish &&
       other.activeChannel == activeChannel &&
       other.connected == connected &&
-      other.mediaBlocked == mediaBlocked;
+      other.mediaBlocked == mediaBlocked &&
+      other.audioBlocked == audioBlocked;
 
   @override
   int get hashCode => Object.hash(
@@ -62,6 +71,7 @@ class LocalCallState {
     activeChannel,
     connected,
     mediaBlocked,
+    audioBlocked,
   );
 }
 

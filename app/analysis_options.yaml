@@ -6,3 +6,4 @@ analyzer:
     - lib/l10n/generated/**
     - android/**
     - ios/**
+    - web/**

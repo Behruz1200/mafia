@@ -124,6 +124,8 @@
   "callMafiaPrivate": "Mafia call: only your team can see and hear you",
   "callYouAreOut": "You are out. You can watch, but not talk.",
   "callMediaBlocked": "Allow camera and microphone for Mafia in your phone's Settings",
+  "callMediaBlockedWeb": "Allow camera and microphone for this site in your browser, then reload the page",
+  "callTapForSound": "Tap here to hear the other players",
   "callConnecting": "Connecting to video…",
   "callYou": "You",
   "authPhoneLabel": "Phone number",

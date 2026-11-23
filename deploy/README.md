@@ -60,6 +60,35 @@ mafia-server`. Switch to `SMS_PROVIDER=eskiz` before real players join.
 then build and install with Xcode as usual. A plain build without these
 defines uses pretend data.
 
+## Web app (play in a browser)
+
+The same Flutter app also runs in a browser, for testing with friends who
+have no test build on their phone. nginx serves it on its own hostname,
+`play.<domain>`, and passes `/v1/` (API and realtime socket) through to
+the game server on that same address. Video goes to `video.<domain>` as
+in the phone app. Browsers only allow camera and microphone on https.
+
+1. Add `play.<domain>` to the certificate (webroot, as above):
+   `certbot certonly --webroot -w /var/www/mafia-acme --cert-name mafia
+   --expand -d api.<domain> -d video.<domain> -d play.<domain>
+   --deploy-hook "systemctl reload nginx"`.
+2. Build, from `app/`. No API_BASE_URL: the web build talks to the site it
+   was loaded from. `--no-web-resources-cdn` serves the renderer from our
+   own server instead of Google's CDN.
+
+       flutter build web --release --no-web-resources-cdn \
+         --dart-define=USE_FAKES=false
+
+3. Copy `app/build/web/` to `/opt/mafia/web/` (owner root, readable by
+   nginx), then `nginx -t` and `systemctl reload nginx` with the updated
+   `nginx/mafia.conf`.
+
+In the browser there is no Apple sign-in and no coin shop (Apple's store
+exists only in the iPhone app); sign in with a phone number. Players need
+their own number each: before Eskiz SMS is set up, give each tester a
+number from `AUTH_TEST_PHONES`. iPhone Safari may hold back other
+players' sound until the player taps the "Tap here to hear" bar.
+
 ## Capacity (rough estimate)
 
 With 2 shared cores and about 2.4 GB free, plan on a few matches at once.
