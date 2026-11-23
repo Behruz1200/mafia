@@ -38,8 +38,8 @@ A fixed deal may have at most one Don, Doctor and Detective, needs at least
 one Mafia member, and the Mafia must be fewer than the town.
 
 **Phases.** `roleReveal` (the host may skip it with `StartMatch`), then
-`night -> day -> voting` until a team wins. The round number goes up each
-night. The server sends `PhaseTimeout` when `phaseEndsAt` passes; the engine
+`night -> day -> voting` until a team wins, with a `lastWord` after each
+elimination (see below). The round number goes up each night. The server sends `PhaseTimeout` when `phaseEndsAt` passes; the engine
 rejects it earlier with `too_early`.
 
 **Night.** Every pick can be changed until the night ends.
@@ -68,6 +68,17 @@ and may change their vote. The most-voted player is out if they have more
 votes than anyone else and more votes than there are skips. Players who did
 not vote do not count. Voting ends early once every living player has voted.
 
+**Last word.** When someone is killed at night or voted out and the match
+goes on, a `lastWord` phase comes first (`night -> lastWord -> day`,
+`voting -> lastWord -> night`). `PublicGameState.lastWordBy` is the speaker:
+already out, but the only one who may talk at the table (30 seconds by
+default, `PhaseDurations.lastWord`). They may type up to three lines
+(`SayLastWord`, each cleaned and cut to 200 characters by
+`ChatRules.clean`), which go to the log as `lastWord` events with `text`, and
+may end it early with `SkipPhase`; nobody else can. It ends at once if the
+speaker leaves. A player saved by the Doctor, a player who leaves, and an
+elimination that ends the match get no last word.
+
 **Winning.** Checked after every elimination. The town wins when no Mafia
 member is alive. The Mafia win once they are at least as many as the living
 town. Everyone on the winning team wins, dead or alive.
@@ -81,7 +92,7 @@ player who is already out can leave without forfeiting.
 `PublicEvent.message` is always one of `EventKeys`: `rolesDealt`,
 `nightStarted`, `eliminated` (with `userId` and `cause`), `nobodyDied`,
 `dayStarted`, `votingStarted`, `voteTied`, `nobodyVotedOut`, `phaseSkipped`,
-`playerLeft`,
+`lastWord` (with `userId` and the typed `text`), `playerLeft`,
 `townWon`, `mafiaWon`. The app localises them.
 
 ## Rejection codes
@@ -89,10 +100,12 @@ player who is already out can leave without forfeiting.
 See `RejectCodes`: `wrong_phase`, `match_ended`, `not_host`,
 `not_your_role`, `unknown_player`, `actor_dead`, `target_dead`,
 `target_self`, `target_teammate`, `already_checked`, `same_heal_twice`,
-`self_heal_used`, `already_left`, `too_early`.
+`self_heal_used`, `already_left`, `too_early`, `empty_text`,
+`last_word_full`.
 
 ## What the engine keeps between phases
 
 `GameState.engineData` holds the Doctor's last protection, whether they used
-their self protection, every check result and who forfeited. It is plain
+their self protection, every check result, who forfeited and, during a last
+word, which phase comes next. It is plain
 JSON: store it with the rest of the state and pass it back unchanged.

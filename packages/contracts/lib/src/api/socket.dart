@@ -1,5 +1,6 @@
 import '../json.dart';
 import '../models/call.dart';
+import '../models/chat.dart';
 import '../models/game_action.dart';
 import '../models/game_state.dart';
 import '../models/match_result.dart';
@@ -19,6 +20,7 @@ sealed class ClientMessage {
       j['roomId']! as String,
       GameAction.fromJson(j['action']! as Json),
     ),
+    'chat' => SendChat(j['roomId']! as String, j['text']! as String),
     'ping' => const Ping(),
     final t => throw FormatException('Unknown ClientMessage: $t'),
   };
@@ -49,6 +51,17 @@ final class SendAction extends ClientMessage {
   Json toJson() => {'t': 'action', 'roomId': roomId, 'action': action.toJson()};
 }
 
+/// A chat message. The server decides who can read it (`ChatRules`) and
+/// refuses it when the player may not write right now (`chat_closed`).
+/// During their last word, the speaker's messages become that last word.
+final class SendChat extends ClientMessage {
+  const SendChat(this.roomId, this.text);
+  final String roomId;
+  final String text;
+  @override
+  Json toJson() => {'t': 'chat', 'roomId': roomId, 'text': text};
+}
+
 final class Ping extends ClientMessage {
   const Ping();
   @override
@@ -72,6 +85,11 @@ sealed class ServerMessage {
     'call' => CallGrantIssued(
       j['roomId']! as String,
       CallGrant.fromJson(j['grant']! as Json),
+    ),
+    'chat' => ChatPosted(ChatMessage.fromJson(j['message']! as Json)),
+    'chatHistory' => ChatHistory(
+      j['roomId']! as String,
+      decodeList(j['messages'], ChatMessage.fromJson),
     ),
     'matchEnded' => MatchEnded(MatchResult.fromJson(j['result']! as Json)),
     'wallet' => WalletUpdated(WalletBalance.fromJson(j['wallet']! as Json)),
@@ -113,6 +131,29 @@ final class CallGrantIssued extends ServerMessage {
   final CallGrant grant;
   @override
   Json toJson() => {'t': 'call', 'roomId': roomId, 'grant': grant.toJson()};
+}
+
+/// A new chat message this player may read.
+final class ChatPosted extends ServerMessage {
+  const ChatPosted(this.message);
+  final ChatMessage message;
+  @override
+  Json toJson() => {'t': 'chat', 'message': message.toJson()};
+}
+
+/// Every recent message this player may read, oldest first. Sent on
+/// `watchRoom`, at match start and when the player is eliminated (they can
+/// now read the dead players' chat). Replaces what the app had.
+final class ChatHistory extends ServerMessage {
+  const ChatHistory(this.roomId, this.messages);
+  final String roomId;
+  final List<ChatMessage> messages;
+  @override
+  Json toJson() => {
+    't': 'chatHistory',
+    'roomId': roomId,
+    'messages': [for (final m in messages) m.toJson()],
+  };
 }
 
 final class MatchEnded extends ServerMessage {

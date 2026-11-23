@@ -1,5 +1,6 @@
 import '../json.dart';
 import 'ids.dart';
+import 'phase.dart';
 
 /// Something a player (or the server clock) does in a match.
 ///
@@ -32,6 +33,7 @@ sealed class GameAction {
         actorId: actor,
         skip: j['skip'] as bool? ?? true,
       ),
+      'lastWord' => SayLastWord(actorId: actor, text: j['text']! as String),
       'phaseTimeout' => const PhaseTimeout(),
       'playerLeft' => PlayerLeft(userId: j['userId']! as String),
       final t => throw FormatException('Unknown GameAction type: $t'),
@@ -88,7 +90,9 @@ final class CastVote extends GameAction {
 
 /// A living player agrees to end the current timer early (the day's
 /// discussion, or the role reveal). The phase ends only once every living
-/// player has agreed, so one player can never skip for everyone.
+/// player has agreed, so one player can never skip for everyone. During
+/// [GamePhase.lastWord] only the speaker may send it, and it ends their
+/// last word at once ("I'm done").
 /// [skip] false takes the player's agreement back.
 final class SkipPhase extends GameAction {
   const SkipPhase({required super.actorId, this.skip = true});
@@ -97,6 +101,19 @@ final class SkipPhase extends GameAction {
   String get type => 'skipPhase';
   @override
   Json _fields() => {'skip': skip};
+}
+
+/// A typed line of the eliminated player's last word, during
+/// [GamePhase.lastWord]. The app does not send this itself: the server
+/// makes it from the speaker's chat message, so the last word is kept in
+/// the match's record and log. [text] is cleaned by `ChatRules.clean`.
+final class SayLastWord extends GameAction {
+  const SayLastWord({required super.actorId, required this.text});
+  final String text;
+  @override
+  String get type => 'lastWord';
+  @override
+  Json _fields() => {'text': text};
 }
 
 /// Sent by the server when the current phase's timer runs out.

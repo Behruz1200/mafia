@@ -15,20 +15,29 @@ const eightDeal = {
 
 /// A small driver that keeps the current state and the clock.
 class Table {
-  Table({int players = 8, Map<Role, int>? deal = eightDeal, int seed = 7})
-    : now = fixtureNow,
-      state = engine.newMatch(
-        roomId: 'room_1',
-        matchId: 'match_1',
-        players: samplePlayers(players),
-        settings: RoomSettings(stake: 100, roleCounts: deal),
-        seed: seed,
-        now: fixtureNow,
-      );
+  Table({
+    int players = 8,
+    Map<Role, int>? deal = eightDeal,
+    int seed = 7,
+    this.skipLastWords = true,
+  }) : now = fixtureNow,
+       state = engine.newMatch(
+         roomId: 'room_1',
+         matchId: 'match_1',
+         players: samplePlayers(players),
+         settings: RoomSettings(stake: 100, roleCounts: deal),
+         seed: seed,
+         now: fixtureNow,
+       );
 
   GameState state;
   DateTime now;
   MatchResult? result;
+
+  /// When true, every last word ends at once (the speaker taps "done"), so
+  /// tests about other rules go straight from night to day and from voting
+  /// to night. The log is the same either way.
+  final bool skipLastWords;
 
   GamePhase get phase => state.public.phase;
   List<PublicEvent> get log => state.public.log;
@@ -53,6 +62,12 @@ class Table {
         if (matchResult != null) {
           expect(result, isNull, reason: 'match ended twice');
           result = matchResult;
+        }
+        final speaker = state.public.lastWordBy;
+        if (skipLastWords &&
+            state.public.phase == GamePhase.lastWord &&
+            speaker != null) {
+          act(SkipPhase(actorId: speaker));
         }
       case Rejected(:final code):
         fail('${a.type} by ${a.actorId} was rejected: $code');

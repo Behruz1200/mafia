@@ -30,6 +30,10 @@ abstract final class EventKeys {
   /// reveal), so the next phase started straight away.
   static const phaseSkipped = 'phaseSkipped';
 
+  /// [PublicEvent.userId] typed a line of their last word;
+  /// [PublicEvent.text] holds it.
+  static const lastWord = 'lastWord';
+
   /// [PublicEvent.userId] left mid-match and forfeits their stake.
   static const playerLeft = 'playerLeft';
 
@@ -56,4 +60,6 @@ abstract final class RejectCodes {
   static const selfHealUsed = 'self_heal_used';
   static const alreadyLeft = 'already_left';
   static const tooEarly = 'too_early';
+  static const emptyText = 'empty_text';
+  static const lastWordFull = 'last_word_full';
 }

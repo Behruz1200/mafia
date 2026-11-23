@@ -501,4 +501,137 @@ void main() {
       );
     });
   });
+
+  group('last word', () {
+    late Table w;
+    late UserId wDon, wDoctor;
+    late List<UserId> town;
+
+    setUp(() {
+      w = Table(skipLastWords: false);
+      wDon = w.one(Role.don);
+      wDoctor = w.one(Role.doctor);
+      town = w.all(Role.civilian);
+      w.toNight();
+    });
+
+    List<String> allowed(UserId id) =>
+        engine.privateView(w.state, id).allowedActions;
+
+    test('the night victim speaks first, then the day starts', () {
+      w.act(NightKill(actorId: wDon, targetId: town[0]));
+      w.timeout();
+      expect(w.phase, GamePhase.lastWord);
+      expect(w.state.public.lastWordBy, town[0]);
+      expect(w.isAlive(town[0]), isFalse);
+      expect(
+        w.state.public.phaseEndsAt,
+        w.now.add(const PhaseDurations().lastWord),
+      );
+      expect(allowed(town[0]), ['lastWord', 'skipPhase']);
+      expect(allowed(wDon), isEmpty);
+      w.timeout();
+      expect(w.phase, GamePhase.day);
+      expect(w.state.public.lastWordBy, isNull);
+      expect(w.lastEvent.message, EventKeys.dayStarted);
+    });
+
+    test('a saved player has no last word', () {
+      w.act(NightKill(actorId: wDon, targetId: town[0]));
+      w.act(NightHeal(actorId: wDoctor, targetId: town[0]));
+      w.timeout();
+      expect(w.phase, GamePhase.day);
+    });
+
+    test('the voted-out player speaks, then night falls', () {
+      w.timeout(); // quiet night
+      w.timeout(); // day
+      for (final c in town.take(3)) {
+        w.act(CastVote(actorId: c, targetId: town[3]));
+      }
+      w.timeout();
+      expect(w.phase, GamePhase.lastWord);
+      expect(w.state.public.lastWordBy, town[3]);
+      expect(w.state.public.round, 1);
+      w.timeout();
+      expect(w.phase, GamePhase.night);
+      expect(w.state.public.round, 2);
+    });
+
+    test('typed lines go to the log, only from the speaker', () {
+      w.act(NightKill(actorId: wDon, targetId: town[0]));
+      w.timeout();
+      expect(
+        w.reject(SayLastWord(actorId: town[1], text: 'hi')),
+        RejectCodes.notYourRole,
+      );
+      expect(
+        w.reject(SayLastWord(actorId: town[0], text: '  \n ')),
+        RejectCodes.emptyText,
+      );
+      w.act(SayLastWord(actorId: town[0], text: '  It was\nthe Don! '));
+      final said = w.lastEvent;
+      expect(said.message, EventKeys.lastWord);
+      expect(said.userId, town[0]);
+      expect(said.text, 'It was the Don!');
+      expect(said.phase, GamePhase.lastWord);
+      // Survives the trip to the app.
+      final back = PublicGameState.fromJson(w.state.public.toJson());
+      expect(back.log.last.text, 'It was the Don!');
+      expect(back.lastWordBy, town[0]);
+    });
+
+    test('at most three typed lines, each cut to 200 characters', () {
+      w.act(NightKill(actorId: wDon, targetId: town[0]));
+      w.timeout();
+      w.act(SayLastWord(actorId: town[0], text: 'x' * 500));
+      expect(w.lastEvent.text, hasLength(ChatRules.maxLength));
+      w.act(SayLastWord(actorId: town[0], text: 'two'));
+      w.act(SayLastWord(actorId: town[0], text: 'three'));
+      expect(allowed(town[0]), ['skipPhase']);
+      expect(
+        w.reject(SayLastWord(actorId: town[0], text: 'four')),
+        RejectCodes.lastWordFull,
+      );
+    });
+
+    test('only the speaker can end it early', () {
+      w.act(NightKill(actorId: wDon, targetId: town[0]));
+      w.timeout();
+      expect(w.reject(SkipPhase(actorId: town[1])), RejectCodes.notYourRole);
+      expect(w.reject(const PhaseTimeout()), RejectCodes.tooEarly);
+      w.act(SkipPhase(actorId: town[0]));
+      expect(w.phase, GamePhase.day);
+    });
+
+    test('the speaker leaving ends it', () {
+      w.act(NightKill(actorId: wDon, targetId: town[0]));
+      w.timeout();
+      w.act(PlayerLeft(userId: town[0]));
+      expect(w.phase, GamePhase.day);
+      expect(w.result, isNull);
+    });
+
+    test('no last word when the elimination ends the match', () {
+      final small = Table(
+        players: 4,
+        deal: const {Role.mafia: 1},
+        skipLastWords: false,
+      );
+      final m = small.one(Role.mafia);
+      final others = small.all(Role.civilian);
+      small.toNight();
+      // The only night role has picked, so the night ends at once.
+      small.act(NightKill(actorId: m, targetId: others[0]));
+      expect(small.phase, GamePhase.lastWord);
+      small.timeout(); // last word over: day
+      small.timeout(); // voting
+      for (final c in others.skip(1)) {
+        small.act(CastVote(actorId: c, targetId: m));
+      }
+      small.act(CastVote(actorId: m, targetId: others[1]));
+      expect(small.phase, GamePhase.ended);
+      expect(small.result?.winningTeam, Team.town);
+    });
+  });
 }

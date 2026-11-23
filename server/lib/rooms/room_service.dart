@@ -29,6 +29,9 @@ class RoomsConfig {
     this.quickStartDelay = const Duration(seconds: 20),
     this.idleLobbyTimeout = const Duration(minutes: 30),
     this.maxMatchLength = const Duration(hours: 2),
+    this.chatHistory = 100,
+    this.chatBurst = 5,
+    this.chatWindow = const Duration(seconds: 5),
   });
 
   /// Rooms open at once on this server. New rooms are refused above it.
@@ -55,6 +58,13 @@ class RoomsConfig {
 
   /// A match still running after this is cancelled and stakes returned.
   final Duration maxMatchLength;
+
+  /// Chat messages kept per room (all channels), for players who reconnect.
+  final int chatHistory;
+
+  /// At most [chatBurst] chat messages per player in any [chatWindow].
+  final int chatBurst;
+  final Duration chatWindow;
 }
 
 class _Member {
@@ -110,6 +120,10 @@ class _LiveRoom {
   GameState? lastState;
   DateTime lastActivity = DateTime.now();
   Timer? autoStart;
+
+  /// Recent chat on every channel, oldest first. Each player is only ever
+  /// sent the messages `ChatRules` lets them read.
+  final chat = <ChatMessage>[];
 
   bool has(UserId u) => members.any((m) => m.userId == u);
   List<UserId> get memberIds => [for (final m in members) m.userId];
@@ -171,6 +185,7 @@ class RoomService implements RealtimeRooms {
   final _byCode = <InviteCode, RoomId>{};
   final _roomOf = <UserId, RoomId>{};
   final _offline = <UserId, Timer>{};
+  final _chatTimes = <UserId, List<DateTime>>{};
   final _roomChanges = StreamController<Room>.broadcast();
   final _publicChanges = StreamController<PublicGameState>.broadcast();
   final _matchStates = StreamController<MatchStateChange>.broadcast();
@@ -339,6 +354,7 @@ class RoomService implements RealtimeRooms {
     } else if (r.lastPublic != null) {
       c.send(PublicStateUpdated(r.lastPublic!));
     }
+    c.send(ChatHistory(roomId, _chatFor(r, c.userId)));
   }
 
   @override
@@ -357,6 +373,91 @@ class RoomService implements RealtimeRooms {
     if (m == null || m.over) throw const RoomError('wrong_phase', 400);
     if (!m.players.contains(u)) throw RoomError.notMember;
     _apply(r, action, fromPlayer: true);
+  }
+
+  // ----------------------------------------------------------------- chat
+
+  /// A chat message. Who may write and who reads it follows `ChatRules`
+  /// (the same secrecy as the camera and mic). During their last word, the
+  /// speaker's messages are also fed to the engine as `SayLastWord`, so the
+  /// last word is kept in the match log and the match record.
+  @override
+  Future<void> chat(UserId u, RoomId roomId, String raw) async {
+    final r = _rooms[roomId];
+    if (r == null || !r.has(u)) throw RoomError.notMember;
+    final text = ChatRules.clean(raw);
+    if (text.isEmpty) throw const RoomError('chat_empty', 400);
+    final live = r.match != null && !r.match!.over ? r.match : null;
+    final pub = live?.state.public;
+    final me = pub?.players.where((p) => p.userId == u).firstOrNull;
+    final speaker = pub?.phase == GamePhase.lastWord && pub?.lastWordBy == u;
+    final channel = ChatRules.channelFor(
+      phase: pub?.phase,
+      inMatch: me != null,
+      isAlive: me?.isAlive ?? false,
+      role: live?.state.roles[u],
+      isLastWordSpeaker: speaker,
+    );
+    if (channel == null) throw const RoomError('chat_closed', 400);
+    _checkChatRate(u);
+    if (speaker) {
+      _apply(r, SayLastWord(actorId: u, text: text), fromPlayer: true);
+    }
+    r.lastActivity = _now();
+    final msg = ChatMessage(
+      id: _id('c'),
+      roomId: r.id,
+      matchId: live?.id,
+      senderId: u,
+      senderName: displayNameOf(r.id, u) ?? '',
+      text: text,
+      channel: channel,
+      sentAt: _now(),
+      lastWord: speaker,
+    );
+    r.chat.add(msg);
+    if (r.chat.length > config.chatHistory) {
+      r.chat.removeRange(0, r.chat.length - config.chatHistory);
+    }
+    for (final v in {...r.memberIds, ...?live?.players}) {
+      if (_canRead(r, v, msg)) hub.sendToUser(v, ChatPosted(msg), room: r.id);
+    }
+  }
+
+  void _checkChatRate(UserId u) {
+    final now = _now();
+    final times = (_chatTimes[u] ??= [])
+      ..removeWhere((t) => now.difference(t) >= config.chatWindow);
+    if (times.length >= config.chatBurst) {
+      throw const RoomError('chat_too_fast', 429);
+    }
+    times.add(now);
+  }
+
+  /// Whether [viewer] may read [msg]: table messages always; Mafia and
+  /// dead-player messages only within their own match, by its rules.
+  bool _canRead(_LiveRoom r, UserId viewer, ChatMessage msg) {
+    if (msg.channel == ChatChannel.table) return true;
+    final state = r.match?.state ?? r.lastState;
+    if (state == null || state.public.matchId != msg.matchId) return false;
+    final p = state.public.players.where((p) => p.userId == viewer);
+    return ChatRules.canRead(
+      channel: msg.channel,
+      inMatch: p.isNotEmpty,
+      isAlive: p.firstOrNull?.isAlive ?? false,
+      role: state.roles[viewer],
+    );
+  }
+
+  List<ChatMessage> _chatFor(_LiveRoom r, UserId u) => [
+    for (final m in r.chat)
+      if (_canRead(r, u, m)) m,
+  ];
+
+  void _sendChatHistory(_LiveRoom r, Iterable<UserId> users) {
+    for (final u in users) {
+      hub.sendToUser(u, ChatHistory(r.id, _chatFor(r, u)), room: r.id);
+    }
   }
 
   // ---------------------------------------------------------------- match
@@ -438,8 +539,11 @@ class RoomService implements RealtimeRooms {
       _log('match $matchId ran too long; cancelling');
       _finish(r, m, _cancelled(r.id, matchId, stake));
     });
+    // The last match's secret chats are over; table chat carries on.
+    r.chat.removeWhere((c) => c.channel != ChatChannel.table);
     _changed(r);
     _broadcast(r, m);
+    _sendChatHistory(r, r.memberIds);
     _scheduleTimeout(r, m);
     if (stake > 0) _sendBalances(ids);
     // Anyone who dropped while the match was starting gets their grace now.
@@ -584,8 +688,21 @@ class RoomService implements RealtimeRooms {
       pendingNightActions: m.state.pendingNightActions,
       seed: m.state.seed,
     );
-    _matchStates.add((next: full, previous: r.lastState));
+    final previous = r.lastState;
+    _matchStates.add((next: full, previous: previous));
     r.lastState = full;
+    // Players just eliminated can now read the dead players' chat.
+    if (previous != null && previous.public.matchId == public.matchId) {
+      final wasAlive = {
+        for (final p in previous.public.players)
+          if (p.isAlive) p.userId,
+      };
+      final newlyOut = [
+        for (final p in public.players)
+          if (!p.isAlive && wasAlive.contains(p.userId)) p.userId,
+      ];
+      if (newlyOut.isNotEmpty) _sendChatHistory(r, newlyOut);
+    }
   }
 
   PrivatePlayerState? _privateFor(_Match m, UserId u) {
@@ -612,6 +729,7 @@ class RoomService implements RealtimeRooms {
     skipVotes: s.skipVotes,
     log: s.log,
     winner: s.winner,
+    lastWordBy: s.lastWordBy,
   );
 
   void _sendBalances(Iterable<UserId> users) {
@@ -646,7 +764,8 @@ class RoomService implements RealtimeRooms {
         okSec(d.roleReveal, 3, 60) &&
         okSec(d.night, 10, 180) &&
         okSec(d.day, 20, 600) &&
-        okSec(d.voting, 10, 180);
+        okSec(d.voting, 10, 180) &&
+        okSec(d.lastWord, 10, 120);
     if (!ok) throw const RoomError('invalid_settings', 400);
   }
 
@@ -806,6 +925,9 @@ class RoomService implements RealtimeRooms {
 
   void _sweep() {
     final now = _now();
+    _chatTimes.removeWhere(
+      (_, t) => t.isEmpty || now.difference(t.last) >= config.chatWindow,
+    );
     for (final r in [..._rooms.values]) {
       if (r.status != RoomStatus.open || r.starting) continue;
       if (r.members.isEmpty) {

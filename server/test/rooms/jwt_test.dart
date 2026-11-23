@@ -55,5 +55,10 @@ void main() {
     );
     expect(stampActor(const PhaseTimeout(), 'me'), isNull);
     expect(stampActor(const PlayerLeft(userId: 'x'), 'me'), isNull);
+    // Last words come in as chat, never as an action from the app.
+    expect(
+      stampActor(const SayLastWord(actorId: 'x', text: 'hi'), 'me'),
+      isNull,
+    );
   });
 }

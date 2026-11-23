@@ -81,6 +81,7 @@ void main() {
       CastVote(actorId: 'a', targetId: null),
       SkipPhase(actorId: 'a'),
       SkipPhase(actorId: 'a', skip: false),
+      SayLastWord(actorId: 'a', text: 'It was the Don'),
       PhaseTimeout(),
       PlayerLeft(userId: 'b'),
     ];
@@ -89,6 +90,110 @@ void main() {
       expect(back.runtimeType, a.runtimeType);
       expect(back.toJson(), a.toJson());
     }
+  });
+
+  test('last word fields', () {
+    final s = PublicGameState(
+      roomId: 'r',
+      matchId: 'm',
+      phase: GamePhase.lastWord,
+      round: 1,
+      players: samplePlayers(6),
+      lastWordBy: 'user_2',
+      log: const [
+        PublicEvent(
+          round: 1,
+          phase: GamePhase.lastWord,
+          message: 'lastWord',
+          userId: 'user_2',
+          text: 'Trust user_4',
+        ),
+      ],
+    );
+    final back = PublicGameState.fromJson(wire(s.toJson()));
+    expect(back.toJson(), s.toJson());
+    expect(back.lastWordBy, 'user_2');
+    expect(back.log.single.text, 'Trust user_4');
+
+    const d = PhaseDurations(lastWord: Duration(seconds: 45));
+    expect(PhaseDurations.fromJson(wire(d.toJson())).lastWord.inSeconds, 45);
+    // Settings stored before last words existed get the default.
+    final old = d.toJson()..remove('lastWordSec');
+    expect(PhaseDurations.fromJson(old).lastWord, const Duration(seconds: 30));
+  });
+
+  test('chat messages on the socket', () {
+    final m = ChatMessage(
+      id: 'c1',
+      roomId: 'r',
+      matchId: 'm',
+      senderId: 'u',
+      senderName: 'Aziz',
+      text: 'salom',
+      channel: ChatChannel.mafia,
+      sentAt: DateTime.utc(2026, 11, 23, 18),
+      lastWord: true,
+    );
+    final posted = ServerMessage.fromJson(wire(ChatPosted(m).toJson()));
+    expect((posted as ChatPosted).message.toJson(), m.toJson());
+    final hist = ServerMessage.fromJson(wire(ChatHistory('r', [m]).toJson()));
+    expect((hist as ChatHistory).messages.single.toJson(), m.toJson());
+    final sent = ClientMessage.fromJson(
+      wire(const SendChat('r', 'hi').toJson()),
+    );
+    expect((sent as SendChat).text, 'hi');
+  });
+
+  group('ChatRules', () {
+    test('clean squeezes blanks and cuts long text', () {
+      expect(ChatRules.clean('  a\n\t b\u0000c  '), 'a b c');
+      expect(ChatRules.clean(' \n '), isEmpty);
+      expect(ChatRules.clean('😀' * 300).runes, hasLength(200));
+    });
+
+    ChatChannel? where(
+      GamePhase? phase, {
+      bool alive = true,
+      Role role = Role.civilian,
+      bool speaker = false,
+    }) => ChatRules.channelFor(
+      phase: phase,
+      inMatch: true,
+      isAlive: alive,
+      role: role,
+      isLastWordSpeaker: speaker,
+    );
+
+    test('who writes where', () {
+      expect(where(null), ChatChannel.table);
+      expect(where(GamePhase.day), ChatChannel.table);
+      expect(where(GamePhase.voting), ChatChannel.table);
+      expect(where(GamePhase.day, alive: false), ChatChannel.dead);
+      expect(where(GamePhase.night), isNull);
+      expect(where(GamePhase.night, role: Role.don), ChatChannel.mafia);
+      expect(where(GamePhase.night, alive: false), ChatChannel.dead);
+      expect(where(GamePhase.lastWord), isNull);
+      expect(
+        where(GamePhase.lastWord, alive: false, speaker: true),
+        ChatChannel.table,
+      );
+      expect(where(GamePhase.ended, alive: false), ChatChannel.table);
+    });
+
+    test('who reads what', () {
+      bool reads(ChatChannel c, {bool alive = true, Role role = Role.doctor}) =>
+          ChatRules.canRead(
+            channel: c,
+            inMatch: true,
+            isAlive: alive,
+            role: role,
+          );
+      expect(reads(ChatChannel.table), isTrue);
+      expect(reads(ChatChannel.mafia), isFalse);
+      expect(reads(ChatChannel.mafia, role: Role.mafia), isTrue);
+      expect(reads(ChatChannel.dead), isFalse);
+      expect(reads(ChatChannel.dead, alive: false), isTrue);
+    });
   });
 
   test('unknown action type is rejected', () {

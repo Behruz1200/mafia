@@ -31,7 +31,8 @@ import 'helpers.dart';
   for (var step = 0; step < 2000 && result == null; step++) {
     final alive = [for (final p in state.public.alive) p.userId];
     final moves = <GameAction>[];
-    for (final id in alive) {
+    final speaker = state.public.lastWordBy;
+    for (final id in [...alive, ?speaker]) {
       final view = engine.privateView(state, id);
       for (final type in view.allowedActions) {
         final target = pick(alive);
@@ -44,6 +45,7 @@ import 'helpers.dart';
             targetId: rnd.nextInt(5) == 0 ? null : target,
           ),
           'skipPhase' => SkipPhase(actorId: id, skip: rnd.nextInt(4) != 0),
+          'lastWord' => SayLastWord(actorId: id, text: 'bye $step'),
           _ => const PhaseTimeout(),
         });
       }
