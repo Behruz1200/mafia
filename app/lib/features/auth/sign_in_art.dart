@@ -119,6 +119,8 @@ class _MiniCard extends StatelessWidget {
     return Container(
       width: width,
       height: height,
+      // Keeps the light circle in the corner inside the rounded card.
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(width * 0.16),
         gradient: LinearGradient(
