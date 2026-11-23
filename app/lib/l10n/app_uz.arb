@@ -76,6 +76,7 @@
   "gameDayPrompt": "Muhokama qiling: Mafia kim?",
   "gameVotePrompt": "Stoldan kim ketishi kerakligiga ovoz bering",
   "gameConfirm": "Tasdiqlash",
+  "gameConfirmed": "Tasdiqlandi: {name}",
   "gameSkipVote": "O‘tkazib yuborish",
   "gameActionSent": "Tayyor. Boshqalar kutilmoqda…",
   "gameDeadSpectator": "Siz o‘yindan chiqdingiz. Kuzatishingiz mumkin, lekin jim turing.",

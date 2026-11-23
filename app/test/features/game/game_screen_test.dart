@@ -89,6 +89,41 @@ void main() {
     expect(sent.targetId, 'user_4');
   });
 
+  testWidgets('a confirmed choice locks until another player is picked', (
+    tester,
+  ) async {
+    final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+    repo
+      ..emitPublic(_state(GamePhase.voting))
+      ..emitPrivate(
+        const PrivatePlayerState(
+          userId: 'user_0',
+          role: Role.civilian,
+          allowedActions: ['castVote'],
+        ),
+      );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Kamola'));
+    await tester.pump();
+    await tester.tap(find.text('Confirm: Kamola'));
+    await tester.pumpAndSettle();
+    expect(find.text('Confirmed: Kamola'), findsOneWidget);
+    expect(find.text('Done. Waiting for the others…'), findsOneWidget);
+
+    await tester.tap(find.text('Confirmed: Kamola'));
+    await tester.pumpAndSettle();
+    expect(repo.sent, hasLength(1));
+
+    // Changing the vote is still allowed.
+    await tester.tap(find.text('Jasur'));
+    await tester.pump();
+    await tester.tap(find.text('Confirm: Jasur'));
+    await tester.pumpAndSettle();
+    expect(repo.sent, hasLength(2));
+    expect((repo.sent.last as CastVote).targetId, 'user_3');
+  });
+
   testWidgets('a civilian sleeps at night with no buttons', (tester) async {
     final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
     repo

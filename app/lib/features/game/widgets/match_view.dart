@@ -46,6 +46,11 @@ class _MatchViewState extends State<MatchView> {
   UserId? _selected;
   bool _sending = false;
 
+  /// What the server already has from this player this turn: a target id,
+  /// or '' for a skipped vote. The same choice can't be sent twice; picking
+  /// someone else and confirming again changes it (the rules allow that).
+  String? _done;
+
   /// The current turn; the pick is cleared whenever it changes.
   String get _turn =>
       '${widget.state.matchId}/${widget.state.round}/${widget.state.phase.name}';
@@ -95,13 +100,16 @@ class _MatchViewState extends State<MatchView> {
       widget.state.players.any((p) => p.userId == widget.me && p.isAlive);
 
   Future<void> _confirm(String action, {bool skip = false}) async {
+    if (_sending) return;
+    final choice = skip ? '' : _selected!;
     setState(() => _sending = true);
     try {
       if (action == 'castVote') {
-        await widget.onVote(skip ? null : _selected);
+        await widget.onVote(skip ? null : choice);
       } else {
-        await widget.onNightAction(action, _selected!);
+        await widget.onNightAction(action, choice);
       }
+      if (mounted && _turn == _lastTurn) setState(() => _done = choice);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -119,6 +127,7 @@ class _MatchViewState extends State<MatchView> {
     if (_turn != _lastTurn) {
       _lastTurn = _turn;
       _selected = null;
+      _done = null;
     }
     final s = widget.state;
     final action = _action;
@@ -206,11 +215,13 @@ class _MatchViewState extends State<MatchView> {
               : _ActionBar(
                   confirmText: _selected == null
                       ? t.gameConfirm
+                      : _selected == _done
+                      ? t.gameConfirmed(_name(_selected!))
                       : '${t.gameConfirm}: ${_name(_selected!)}',
-                  onConfirm: _selected == null || _sending
+                  onConfirm: _selected == null || _sending || _selected == _done
                       ? null
                       : () => _confirm(action),
-                  onSkip: action == 'castVote' && !_sending
+                  onSkip: action == 'castVote' && !_sending && _done != ''
                       ? () => _confirm(action, skip: true)
                       : null,
                   skipText: t.gameSkipVote,
@@ -225,6 +236,7 @@ class _MatchViewState extends State<MatchView> {
 
   String _promptText(AppLocalizations t, String? action) {
     if (!_meAlive) return t.gameDeadSpectator;
+    if (action != null && _done != null) return t.gameActionSent;
     return switch ((widget.state.phase, action)) {
       (_, 'nightKill') => t.gameNightKillPrompt,
       (_, 'nightHeal') => t.gameNightHealPrompt,

@@ -76,6 +76,7 @@
   "gameDayPrompt": "Обсуждайте: кто мафия?",
   "gameVotePrompt": "Голосуйте, кто покинет стол",
   "gameConfirm": "Подтвердить",
+  "gameConfirmed": "Подтверждено: {name}",
   "gameSkipVote": "Пропустить",
   "gameActionSent": "Готово. Ждём остальных…",
   "gameDeadSpectator": "Вы выбыли. Можно смотреть, но не подсказывайте.",
