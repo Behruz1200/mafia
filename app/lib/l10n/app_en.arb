@@ -84,6 +84,11 @@
   "gameDayPrompt": "Talk it over: who is the Mafia?",
   "gameVotePrompt": "Vote for who should leave the table",
   "gameConfirm": "Confirm",
+  "gameConfirmed": "Confirmed: {name}",
+  "@gameConfirmed": {
+    "description": "Confirm button after the choice was sent; tapping again does nothing",
+    "placeholders": {"name": {"type": "String"}}
+  },
   "gameSkipVote": "Skip",
   "gameActionSent": "Done. Waiting for the others…",
   "gameDeadSpectator": "You are out. You can watch, but please stay quiet.",
