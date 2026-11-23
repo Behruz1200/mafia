@@ -30,6 +30,9 @@ Room sampleRoom({int players = 8, int stake = 100}) => Room(
   status: RoomStatus.open,
   settings: RoomSettings(stake: stake),
   memberIds: [for (final p in samplePlayers(players)) p.userId],
+  memberNames: {
+    for (final p in samplePlayers(players)) p.userId: p.displayName,
+  },
   createdAt: fixtureNow,
 );
 

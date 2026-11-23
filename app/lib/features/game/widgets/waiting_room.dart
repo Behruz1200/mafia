@@ -21,8 +21,8 @@ class WaitingRoom extends StatelessWidget {
 
   final Room room;
 
-  /// Seated players with names, once the server has sent them. Until then
-  /// the room's member ids stand in.
+  /// Seated players, once a match has dealt them. Before that the room's
+  /// members stand in, with the names the server sends along.
   final List<Player>? players;
   final UserId? me;
   final Future<void> Function() onStart;
@@ -36,7 +36,7 @@ class WaitingRoom extends StatelessWidget {
           for (final (i, id) in room.memberIds.indexed)
             Player(
               userId: id,
-              displayName: id,
+              displayName: room.memberNames[id] ?? '…',
               seat: i,
               isHost: id == room.hostId,
             ),

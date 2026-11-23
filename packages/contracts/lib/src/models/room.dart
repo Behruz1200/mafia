@@ -98,6 +98,7 @@ class Room {
     required this.memberIds,
     required this.createdAt,
     this.currentMatchId,
+    this.memberNames = const {},
   });
 
   final RoomId id;
@@ -109,6 +110,10 @@ class Room {
   /// Everyone in the room, in seat order. The server only streams a room's
   /// game state to these users.
   final List<UserId> memberIds;
+
+  /// Display names of [memberIds], so the waiting room can show who is
+  /// seated before a match starts. May miss someone (older servers).
+  final Map<UserId, String> memberNames;
   final MatchId? currentMatchId;
   final DateTime createdAt;
 
@@ -119,6 +124,7 @@ class Room {
     'status': status.name,
     'settings': settings.toJson(),
     'memberIds': memberIds,
+    'memberNames': memberNames,
     'currentMatchId': currentMatchId,
     'createdAt': encodeTime(createdAt),
   };
@@ -130,6 +136,10 @@ class Room {
     status: decodeEnum(RoomStatus.values, j['status']),
     settings: RoomSettings.fromJson(j['settings']! as Json),
     memberIds: decodeStrings(j['memberIds']),
+    memberNames: {
+      for (final e in ((j['memberNames'] as Map?) ?? const {}).entries)
+        e.key as String: e.value as String,
+    },
     currentMatchId: j['currentMatchId'] as String?,
     createdAt: decodeTime(j['createdAt']),
   );

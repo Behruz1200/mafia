@@ -44,6 +44,14 @@ void main() {
     expect(repo.sent.single, isA<StartMatch>());
   });
 
+  testWidgets('before the match, seats show names, not ids', (tester) async {
+    await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Kamola'), findsOneWidget);
+    expect(find.textContaining('user_4'), findsNothing);
+  });
+
   testWidgets('role card flips to show the secret role', (tester) async {
     final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
     repo
