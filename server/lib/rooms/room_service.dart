@@ -122,6 +122,7 @@ class _LiveRoom {
     status: status,
     settings: settings,
     memberIds: memberIds,
+    memberNames: {for (final m in members) m.userId: m.displayName},
     currentMatchId: match?.id,
     createdAt: createdAt,
   );
