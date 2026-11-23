@@ -3,6 +3,8 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../ui/game_style.dart';
+import '../ui/game_text.dart';
+import '../story/story_view.dart';
 
 /// After the match: who won, what it meant for my coins, and what next.
 ///
@@ -37,6 +39,24 @@ class ResultsView extends StatelessWidget {
     final winnerNames = [
       for (final p in state.players)
         if (result?.winners.contains(p.userId) ?? false) p.displayName,
+    ];
+    // Every card is face up once the match is over. Players are listed in
+    // seat order, Mafia first within each group so the answer stands out.
+    final roles = result?.roles ?? const <UserId, Role>{};
+    final seated =
+        [
+          for (final p in state.players)
+            if (roles.containsKey(p.userId)) p,
+        ]..sort(
+          (a, b) => _rank(roles[a.userId]!).compareTo(_rank(roles[b.userId]!)),
+        );
+    final winnersList = [
+      for (final p in seated)
+        if (result!.winners.contains(p.userId)) p,
+    ];
+    final losersList = [
+      for (final p in seated)
+        if (!result!.winners.contains(p.userId)) p,
     ];
 
     return ListView(
@@ -126,18 +146,37 @@ class ResultsView extends StatelessWidget {
               ],
             ),
           ),
-        if (winnerNames.isNotEmpty) ...[
+        if (result?.story != null && !cancelled) ...[
+          const SizedBox(height: 16),
+          MatchStoryButton(state: state, result: result!, me: me),
+        ],
+        if (roles.isNotEmpty) ...[
+          for (final (title, group) in [
+            (t.gameResultWinners, winnersList),
+            (t.gameResultLosers, losersList),
+          ])
+            if (group.isNotEmpty) ...[
+              const SizedBox(height: 22),
+              _SectionTitle(title),
+              const SizedBox(height: 10),
+              GamePanel(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Column(
+                  children: [
+                    for (final p in group)
+                      _RoleRow(
+                        name: p.displayName,
+                        role: roles[p.userId]!,
+                        isMe: p.userId == me,
+                        left: result!.forfeited.contains(p.userId),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+        ] else if (winnerNames.isNotEmpty) ...[
           const SizedBox(height: 22),
-          Text(
-            t.gameResultWinners.toUpperCase(),
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: GameStyle.muted,
-              fontWeight: FontWeight.w800,
-              fontSize: 11,
-              letterSpacing: 1.2,
-            ),
-          ),
+          _SectionTitle(t.gameResultWinners),
           const SizedBox(height: 10),
           Wrap(
             alignment: WrapAlignment.center,
@@ -190,6 +229,119 @@ class ResultsView extends StatelessWidget {
           child: Text(t.gameBackToLobby),
         ),
       ],
+    );
+  }
+}
+
+/// Mafia team first (Don, then Mafia), then Detective, Doctor, Civilians.
+int _rank(Role r) => switch (r) {
+  Role.don => 0,
+  Role.mafia => 1,
+  Role.detective => 2,
+  Role.doctor => 3,
+  Role.civilian => 4,
+};
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text.toUpperCase(),
+    textAlign: TextAlign.center,
+    style: const TextStyle(
+      color: GameStyle.muted,
+      fontWeight: FontWeight.w800,
+      fontSize: 11,
+      letterSpacing: 1.2,
+    ),
+  );
+}
+
+/// One player with their card turned face up.
+class _RoleRow extends StatelessWidget {
+  const _RoleRow({
+    required this.name,
+    required this.role,
+    required this.isMe,
+    required this.left,
+  });
+
+  final String name;
+  final Role role;
+  final bool isMe;
+  final bool left;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    final color = GameStyle.teamColor(role.team);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      child: Row(
+        spacing: 12,
+        children: [
+          PlayerAvatar(name: name, size: 36),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 2,
+              children: [
+                Text(
+                  isMe ? '$name (${t.gameYou})' : name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+                if (left)
+                  Text(
+                    t.gameResultLeft,
+                    style: const TextStyle(
+                      color: GameStyle.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(10, 6, 12, 6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color.withValues(alpha: 0.5)),
+              boxShadow: role.team == Team.mafia
+                  ? [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.35),
+                        blurRadius: 14,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 6,
+              children: [
+                Icon(GameStyle.roleIcon(role), size: 16, color: color),
+                Text(
+                  t.roleName(role),
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

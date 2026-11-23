@@ -624,6 +624,7 @@ void main() {
       // The only night role has picked, so the night ends at once.
       small.act(NightKill(actorId: m, targetId: others[0]));
       expect(small.phase, GamePhase.lastWord);
+      small.act(SayLastWord(actorId: others[0], text: 'Vote out $m'));
       small.timeout(); // last word over: day
       small.timeout(); // voting
       for (final c in others.skip(1)) {
@@ -632,6 +633,10 @@ void main() {
       small.act(CastVote(actorId: m, targetId: others[1]));
       expect(small.phase, GamePhase.ended);
       expect(small.result?.winningTeam, Team.town);
+      // The typed last word is kept for the end-of-match story.
+      expect(small.result?.story?.lastWords, {
+        others[0]: ['Vote out $m'],
+      });
     });
   });
 }

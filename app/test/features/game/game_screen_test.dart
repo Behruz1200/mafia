@@ -214,6 +214,43 @@ void main() {
     expect(find.text('Play again'), findsOneWidget);
   });
 
+  testWidgets('results reveal every player\'s card', (tester) async {
+    final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+    await tester.pump();
+    repo
+      ..emitPublic(_state(GamePhase.ended, winner: Team.town))
+      ..emitMatchEnd(
+        MatchResult(
+          roomId: 'room_1',
+          matchId: 'match_1',
+          stake: 0,
+          winningTeam: Team.town,
+          winners: const ['user_1', 'user_2', 'user_4'],
+          losers: const ['user_0', 'user_3'],
+          forfeited: const ['user_3'],
+          roles: const {
+            'user_0': Role.don,
+            'user_1': Role.detective,
+            'user_2': Role.doctor,
+            'user_3': Role.mafia,
+            'user_4': Role.civilian,
+          },
+          endedAt: fixtureNow,
+        ),
+      );
+    await tester.pumpAndSettle();
+
+    expect(find.text('WINNERS'), findsOneWidget);
+    expect(find.text('LOSERS'), findsOneWidget);
+    expect(find.text('Aziza (You)'), findsOneWidget);
+    // "Mafia" is also the screen title, so look for the role chip's icon.
+    for (final role in ['Don', 'Detective', 'Doctor', 'Civilian']) {
+      expect(find.text(role), findsOneWidget, reason: role);
+    }
+    expect(find.byIcon(Icons.theater_comedy), findsOneWidget);
+    expect(find.text('Left'), findsOneWidget);
+  });
+
   testWidgets('skip timer counts agreements and can be taken back', (
     tester,
   ) async {

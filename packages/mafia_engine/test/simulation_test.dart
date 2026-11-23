@@ -85,6 +85,8 @@ void main() {
       expect(state.public.phase, GamePhase.ended);
       expect(result.winningTeam, state.public.winner);
       expect({...result.winners, ...result.losers}, everyone);
+      // Every card is revealed at the end, and matches the deal.
+      expect(result.roles, state.roles);
       expect(
         result.winners.toSet().intersection(result.losers.toSet()),
         isEmpty,
