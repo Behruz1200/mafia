@@ -88,6 +88,11 @@ abstract final class ChatRules {
   /// Typed lines one player may add to their last word.
   static const maxLastWordLines = 3;
 
+  /// The emoji a player can pop up on their own seat. Reactions follow the
+  /// same rules as messages: they reach exactly who could read a message
+  /// from that player right now.
+  static const reactions = ['👍', '👎', '😂', '😮', '😡', '🤔', '🤫', '❤️'];
+
   /// Where a message from this player goes right now, or null if they may
   /// not write. [phase] null means no match is running (waiting room).
   static ChatChannel? channelFor({
@@ -157,4 +162,40 @@ abstract final class ChatRules {
         ? s
         : String.fromCharCodes(runes.take(maxLength)).trimRight();
   }
+}
+
+/// An emoji a player popped up on their own seat for a moment. Not kept:
+/// players who reconnect do not see old reactions.
+class ChatReaction {
+  const ChatReaction({
+    required this.roomId,
+    required this.senderId,
+    required this.emoji,
+    required this.channel,
+    required this.sentAt,
+  });
+
+  final RoomId roomId;
+  final UserId senderId;
+
+  /// One of [ChatRules.reactions].
+  final String emoji;
+  final ChatChannel channel;
+  final DateTime sentAt;
+
+  Json toJson() => {
+    'roomId': roomId,
+    'senderId': senderId,
+    'emoji': emoji,
+    'channel': channel.name,
+    'sentAt': encodeTime(sentAt),
+  };
+
+  factory ChatReaction.fromJson(Json j) => ChatReaction(
+    roomId: j['roomId']! as String,
+    senderId: j['senderId']! as String,
+    emoji: j['emoji']! as String,
+    channel: decodeEnum(ChatChannel.values, j['channel']),
+    sentAt: decodeTime(j['sentAt']),
+  );
 }

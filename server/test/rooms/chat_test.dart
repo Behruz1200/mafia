@@ -138,6 +138,44 @@ void main() {
     });
   });
 
+  test('emoji reach the same players as chat', () {
+    run(() {
+      Object? react(UserId u, String e) {
+        Object? err;
+        rig.service
+            .react(u, roomId, e)
+            .then(
+              (_) {},
+              onError: (Object x) {
+                err = x;
+              },
+            );
+        a.flushMicrotasks();
+        return err;
+      }
+
+      List<String> pops(UserId u) => [
+        for (final m in rig.sockets[u]!.messages)
+          if (m is ReactionShown) '${m.reaction.senderId}${m.reaction.emoji}',
+      ];
+
+      expect(react('u1', '👍'), isNull);
+      for (final u in users) {
+        expect(pops(u), ['u1👍']);
+      }
+      expect(react('u1', '💩'), roomError('bad_request'));
+
+      start();
+      a.elapse(const Duration(seconds: 3)); // night
+      final mafia = first(Role.mafia);
+      final civ = first(Role.civilian);
+      expect(react(civ, '😮'), roomError('chat_closed'));
+      expect(react(mafia, '🤫'), isNull);
+      expect(pops(mafia), ['u1👍', '$mafia🤫']);
+      expect(pops(civ), ['u1👍'], reason: 'the town sees no Mafia emoji');
+    });
+  });
+
   test('a killed player gets a last word, kept in the match record', () {
     run(() {
       start();

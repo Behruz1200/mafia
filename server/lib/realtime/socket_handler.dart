@@ -19,6 +19,9 @@ abstract interface class RealtimeRooms {
 
   /// A chat message from [userId]; the rooms code decides who reads it.
   Future<void> chat(UserId userId, RoomId roomId, String text);
+
+  /// An emoji popped on [userId]'s seat, seen by the same players as chat.
+  Future<void> react(UserId userId, RoomId roomId, String emoji);
 }
 
 /// Close codes the app can act on.
@@ -80,6 +83,8 @@ Handler socketHandler({
               await rooms.act(userId, roomId, stamped);
             case SendChat(:final roomId, :final text):
               await rooms.chat(userId, roomId, text);
+            case SendReaction(:final roomId, :final emoji):
+              await rooms.react(userId, roomId, emoji);
           }
         } on RoomError catch (e) {
           fail(e.code, e.message);

@@ -133,6 +133,11 @@ class FakeRoomRepository implements RoomRepository {
   final _chat = StreamController<List<ChatMessage>>.broadcast();
   var _chatSeq = 0;
 
+  final _reactions = StreamController<ChatReaction>.broadcast();
+
+  /// Shows a reaction as if the server had sent it.
+  void emitReaction(ChatReaction r) => _reactions.add(r);
+
   /// Shows a message as if the server had sent it.
   void emitChat(ChatMessage m) => _chat.add(List.unmodifiable(chat..add(m)));
 
@@ -178,6 +183,24 @@ class FakeRoomRepository implements RoomRepository {
   Stream<List<ChatMessage>> watchChat(RoomId roomId) async* {
     yield List.unmodifiable(chat);
     yield* _chat.stream;
+  }
+
+  @override
+  Stream<ChatReaction> watchReactions(RoomId roomId) => _reactions.stream;
+
+  /// Echoes it back on `user_0`'s seat, like the server.
+  @override
+  Future<void> sendReaction(RoomId roomId, String emoji) async {
+    if (!ChatRules.reactions.contains(emoji)) return;
+    emitReaction(
+      ChatReaction(
+        roomId: roomId,
+        senderId: 'user_0',
+        emoji: emoji,
+        channel: ChatChannel.table,
+        sentAt: DateTime.now().toUtc(),
+      ),
+    );
   }
 
   /// Echoes the message back on the table as `user_0`, like the server.

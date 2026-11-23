@@ -138,6 +138,19 @@ void main() {
     expect((posted as ChatPosted).message.toJson(), m.toJson());
     final hist = ServerMessage.fromJson(wire(ChatHistory('r', [m]).toJson()));
     expect((hist as ChatHistory).messages.single.toJson(), m.toJson());
+    final r = ChatReaction(
+      roomId: 'r',
+      senderId: 'u',
+      emoji: '🤫',
+      channel: ChatChannel.dead,
+      sentAt: DateTime.utc(2026, 11, 23, 18),
+    );
+    final shown = ServerMessage.fromJson(wire(ReactionShown(r).toJson()));
+    expect((shown as ReactionShown).reaction.toJson(), r.toJson());
+    final react = ClientMessage.fromJson(
+      wire(const SendReaction('r', '👍').toJson()),
+    );
+    expect((react as SendReaction).emoji, '👍');
     final sent = ClientMessage.fromJson(
       wire(const SendChat('r', 'hi').toJson()),
     );

@@ -21,6 +21,7 @@ sealed class ClientMessage {
       GameAction.fromJson(j['action']! as Json),
     ),
     'chat' => SendChat(j['roomId']! as String, j['text']! as String),
+    'react' => SendReaction(j['roomId']! as String, j['emoji']! as String),
     'ping' => const Ping(),
     final t => throw FormatException('Unknown ClientMessage: $t'),
   };
@@ -62,6 +63,17 @@ final class SendChat extends ClientMessage {
   Json toJson() => {'t': 'chat', 'roomId': roomId, 'text': text};
 }
 
+/// Pop an emoji (one of `ChatRules.reactions`) on the player's own seat.
+/// Same rules as [SendChat]: refused with `chat_closed` when the player
+/// may not write right now.
+final class SendReaction extends ClientMessage {
+  const SendReaction(this.roomId, this.emoji);
+  final String roomId;
+  final String emoji;
+  @override
+  Json toJson() => {'t': 'react', 'roomId': roomId, 'emoji': emoji};
+}
+
 final class Ping extends ClientMessage {
   const Ping();
   @override
@@ -91,6 +103,7 @@ sealed class ServerMessage {
       j['roomId']! as String,
       decodeList(j['messages'], ChatMessage.fromJson),
     ),
+    'reaction' => ReactionShown(ChatReaction.fromJson(j['reaction']! as Json)),
     'matchEnded' => MatchEnded(MatchResult.fromJson(j['result']! as Json)),
     'wallet' => WalletUpdated(WalletBalance.fromJson(j['wallet']! as Json)),
     'error' => SocketError(j['code']! as String, j['message'] as String?),
@@ -154,6 +167,14 @@ final class ChatHistory extends ServerMessage {
     'roomId': roomId,
     'messages': [for (final m in messages) m.toJson()],
   };
+}
+
+/// Someone popped an emoji on their seat; sent only to who may see it.
+final class ReactionShown extends ServerMessage {
+  const ReactionShown(this.reaction);
+  final ChatReaction reaction;
+  @override
+  Json toJson() => {'t': 'reaction', 'reaction': reaction.toJson()};
 }
 
 final class MatchEnded extends ServerMessage {

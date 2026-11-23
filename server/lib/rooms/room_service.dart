@@ -185,7 +185,7 @@ class RoomService implements RealtimeRooms {
   final _byCode = <InviteCode, RoomId>{};
   final _roomOf = <UserId, RoomId>{};
   final _offline = <UserId, Timer>{};
-  final _chatTimes = <UserId, List<DateTime>>{};
+  final _chatTimes = <String, List<DateTime>>{};
   final _roomChanges = StreamController<Room>.broadcast();
   final _publicChanges = StreamController<PublicGameState>.broadcast();
   final _matchStates = StreamController<MatchStateChange>.broadcast();
@@ -389,15 +389,8 @@ class RoomService implements RealtimeRooms {
     if (text.isEmpty) throw const RoomError('chat_empty', 400);
     final live = r.match != null && !r.match!.over ? r.match : null;
     final pub = live?.state.public;
-    final me = pub?.players.where((p) => p.userId == u).firstOrNull;
     final speaker = pub?.phase == GamePhase.lastWord && pub?.lastWordBy == u;
-    final channel = ChatRules.channelFor(
-      phase: pub?.phase,
-      inMatch: me != null,
-      isAlive: me?.isAlive ?? false,
-      role: live?.state.roles[u],
-      isLastWordSpeaker: speaker,
-    );
+    final channel = _channelOf(r, u);
     if (channel == null) throw const RoomError('chat_closed', 400);
     _checkChatRate(u);
     if (speaker) {
@@ -424,7 +417,59 @@ class RoomService implements RealtimeRooms {
     }
   }
 
-  void _checkChatRate(UserId u) {
+  /// An emoji on [u]'s seat. It reaches exactly the players a chat message
+  /// from [u] would reach right now, and is not kept.
+  @override
+  Future<void> react(UserId u, RoomId roomId, String emoji) async {
+    final r = _rooms[roomId];
+    if (r == null || !r.has(u)) throw RoomError.notMember;
+    if (!ChatRules.reactions.contains(emoji)) throw RoomError.badRequest;
+    final channel = _channelOf(r, u);
+    if (channel == null) throw const RoomError('chat_closed', 400);
+    _checkChatRate('react:$u');
+    final live = r.match != null && !r.match!.over ? r.match : null;
+    final reaction = ChatReaction(
+      roomId: r.id,
+      senderId: u,
+      emoji: emoji,
+      channel: channel,
+      sentAt: _now(),
+    );
+    // Checked like a message of this match, so the same readers see it.
+    final probe = ChatMessage(
+      id: '',
+      roomId: r.id,
+      matchId: live?.id,
+      senderId: u,
+      senderName: '',
+      text: '',
+      channel: channel,
+      sentAt: reaction.sentAt,
+    );
+    for (final v in {...r.memberIds, ...?live?.players}) {
+      if (_canRead(r, v, probe)) {
+        hub.sendToUser(v, ReactionShown(reaction), room: r.id);
+      }
+    }
+  }
+
+  /// Where a message from [u] goes right now (`ChatRules.channelFor`), or
+  /// null when they may not write.
+  ChatChannel? _channelOf(_LiveRoom r, UserId u) {
+    final live = r.match != null && !r.match!.over ? r.match : null;
+    final pub = live?.state.public;
+    final me = pub?.players.where((p) => p.userId == u).firstOrNull;
+    return ChatRules.channelFor(
+      phase: pub?.phase,
+      inMatch: me != null,
+      isAlive: me?.isAlive ?? false,
+      role: live?.state.roles[u],
+      isLastWordSpeaker:
+          pub?.phase == GamePhase.lastWord && pub?.lastWordBy == u,
+    );
+  }
+
+  void _checkChatRate(String u) {
     final now = _now();
     final times = (_chatTimes[u] ??= [])
       ..removeWhere((t) => now.difference(t) >= config.chatWindow);

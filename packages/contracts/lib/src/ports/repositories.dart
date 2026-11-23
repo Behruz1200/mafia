@@ -66,6 +66,13 @@ abstract interface class RoomRepository {
 
   /// Send a chat message; the server picks who reads it (`ChatRules`).
   Future<void> sendChat(RoomId roomId, String text);
+
+  /// Emoji popped on seats in [roomId] that this player may see, as they
+  /// happen (never replayed).
+  Stream<ChatReaction> watchReactions(RoomId roomId);
+
+  /// Pop one of `ChatRules.reactions` on my seat.
+  Future<void> sendReaction(RoomId roomId, String emoji);
 }
 
 /// Owned by stream 4 (coins).
