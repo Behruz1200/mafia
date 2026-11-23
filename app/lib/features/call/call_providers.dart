@@ -17,7 +17,7 @@ final callGrantSourceProvider = Provider<CallGrantSource>(
         ),
 );
 
-/// The call for one room. Lives while a `CallView` for that room is on
+/// The call for one room. Lives while the `CallControls` for that room are on
 /// screen, and leaves the call when it goes away.
 final callSessionProvider = Provider.autoDispose.family<CallSession, RoomId>((
   ref,

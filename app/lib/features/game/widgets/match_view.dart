@@ -2,6 +2,7 @@ import 'package:contracts/contracts.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../core/theme.dart';
 import '../../call/call_view.dart';
 import '../ui/game_style.dart';
 import '../ui/game_text.dart';
@@ -39,7 +40,6 @@ class MatchView extends StatefulWidget {
 class _MatchViewState extends State<MatchView> {
   UserId? _selected;
   bool _sending = false;
-  bool _videoOpen = true;
 
   /// The current turn; the pick is cleared whenever it changes.
   String get _turn =>
@@ -123,11 +123,14 @@ class _MatchViewState extends State<MatchView> {
     final isNight = s.phase == GamePhase.night;
     final events = [for (final e in s.log.reversed) ?t.eventText(e, _name)];
 
+    final sleeping = isNight && action == null && _meAlive;
+
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
           child: Row(
+            spacing: 10,
             children: [
               Expanded(child: PhaseHeader(state: s)),
               if (role != null)
@@ -144,18 +147,6 @@ class _MatchViewState extends State<MatchView> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             children: [
-              _VideoPanel(
-                roomId: widget.roomId,
-                open: _videoOpen,
-                onToggle: () => setState(() => _videoOpen = !_videoOpen),
-                sleeping: isNight && action == null && _meAlive,
-              ),
-              const SizedBox(height: 12),
-              _Prompt(
-                text: _promptText(t, action),
-                icon: _meAlive ? Icons.info_outline : Icons.visibility,
-              ),
-              const SizedBox(height: 12),
               PlayerTable(
                 players: s.players,
                 me: widget.me,
@@ -164,27 +155,56 @@ class _MatchViewState extends State<MatchView> {
                 selectable: _sending ? const {} : targets,
                 selected: _selected,
                 onSelect: (u) => setState(() => _selected = u),
+                // Stream 3 (video) owns SeatVideo: each seat is that
+                // player's camera.
+                face: (id, placeholder) =>
+                    SeatVideo(userId: id, placeholder: placeholder),
               ),
-              if (events.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              _Prompt(
+                text: _promptText(t, action),
+                latest: events.firstOrNull,
+                icon: !_meAlive
+                    ? Icons.visibility_rounded
+                    : sleeping
+                    ? Icons.bedtime_rounded
+                    : action != null
+                    ? Icons.touch_app_rounded
+                    : Icons.forum_rounded,
+                color: !_meAlive
+                    ? GameStyle.muted
+                    : isNight
+                    ? GameStyle.moon
+                    : action != null
+                    ? GameStyle.crimson
+                    : GameStyle.gold,
+              ),
+              if (events.length > 1) ...[
                 const SizedBox(height: 12),
-                _EventLog(lines: events),
+                _EventLog(lines: events.skip(1).toList()),
               ],
             ],
           ),
         ),
-        if (action != null)
-          _ActionBar(
-            confirmText: _selected == null
-                ? t.gameConfirm
-                : '${t.gameConfirm}: ${_name(_selected!)}',
-            onConfirm: _selected == null || _sending
-                ? null
-                : () => _confirm(action),
-            onSkip: action == 'castVote' && !_sending
-                ? () => _confirm(action, skip: true)
-                : null,
-            skipText: t.gameSkipVote,
-          ),
+        _BottomBar(
+          action: action == null
+              ? null
+              : _ActionBar(
+                  confirmText: _selected == null
+                      ? t.gameConfirm
+                      : '${t.gameConfirm}: ${_name(_selected!)}',
+                  onConfirm: _selected == null || _sending
+                      ? null
+                      : () => _confirm(action),
+                  onSkip: action == 'castVote' && !_sending
+                      ? () => _confirm(action, skip: true)
+                      : null,
+                  skipText: t.gameSkipVote,
+                ),
+          // Stream 3 (video) owns CallControls. It stays mounted for the
+          // whole match: the call joins and leaves with it.
+          call: CallControls(roomId: widget.roomId),
+        ),
       ],
     );
   }
@@ -203,109 +223,54 @@ class _MatchViewState extends State<MatchView> {
   }
 }
 
-class _VideoPanel extends StatelessWidget {
-  const _VideoPanel({
-    required this.roomId,
-    required this.open,
-    required this.onToggle,
-    required this.sleeping,
+/// What to do now, with the latest thing that happened under it.
+class _Prompt extends StatelessWidget {
+  const _Prompt({
+    required this.text,
+    required this.icon,
+    required this.color,
+    this.latest,
   });
 
-  final RoomId roomId;
-  final bool open;
-  final VoidCallback onToggle;
-  final bool sleeping;
+  final String text;
+  final IconData icon;
+  final Color color;
+  final String? latest;
 
   @override
   Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context);
     return GamePanel(
-      padding: const EdgeInsets.fromLTRB(12, 4, 4, 8),
-      child: Column(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        spacing: 12,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.videocam, size: 18, color: GameStyle.muted),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  t.gameVideo,
-                  style: const TextStyle(color: GameStyle.muted),
+          IconBlob(icon: icon, color: color, size: 40),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 3,
+              children: [
+                Text(
+                  text,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    height: 1.3,
+                  ),
                 ),
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                icon: Icon(open ? Icons.expand_less : Icons.expand_more),
-                onPressed: onToggle,
-              ),
-            ],
-          ),
-          // The call stays mounted for the whole match (it joins and
-          // leaves with its widget); collapsing only hides it.
-          Visibility(
-            visible: open,
-            maintainState: true,
-            child: SizedBox(
-              height: 190,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Stream 3 (video) owns this widget.
-                  CallView(roomId: roomId),
-                  if (sleeping)
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: const Color(0xF0070A12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          spacing: 8,
-                          children: [
-                            const Icon(
-                              Icons.bedtime,
-                              size: 48,
-                              color: GameStyle.moon,
-                            ),
-                            Text(
-                              t.gameNightSleep,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: GameStyle.moon),
-                            ),
-                          ],
-                        ),
-                      ),
+                if (latest != null)
+                  Text(
+                    latest!,
+                    style: const TextStyle(
+                      color: GameStyle.muted,
+                      fontSize: 13,
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _Prompt extends StatelessWidget {
-  const _Prompt({required this.text, required this.icon});
-
-  final String text;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      spacing: 8,
-      children: [
-        Icon(icon, size: 18, color: GameStyle.gold),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -319,26 +284,53 @@ class _EventLog extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     return GamePanel(
+      color: Colors.transparent,
+      borderColor: Palette.outlineSoft,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 6,
         children: [
           Text(
-            t.gameLogTitle,
+            t.gameLogTitle.toUpperCase(),
             style: const TextStyle(
               color: GameStyle.muted,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+              letterSpacing: 1.2,
             ),
           ),
-          for (final (i, line) in lines.take(6).indexed)
-            Text(
-              line,
-              style: TextStyle(
-                color: i == 0 ? Colors.white : GameStyle.muted,
-                fontWeight: i == 0 ? FontWeight.w600 : null,
-              ),
-            ),
+          for (final line in lines.take(5))
+            Text(line, style: const TextStyle(color: GameStyle.muted)),
         ],
+      ),
+    );
+  }
+}
+
+/// The bottom of the table: the pick-and-confirm row when the player has
+/// something to do, and the camera and mic under it.
+class _BottomBar extends StatelessWidget {
+  const _BottomBar({required this.action, required this.call});
+
+  final Widget? action;
+  final Widget call;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: const BoxDecoration(
+        color: Palette.surfaceSheet,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 12,
+          children: [?action, call],
+        ),
       ),
     );
   }
@@ -359,39 +351,33 @@ class _ActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: BoxDecoration(
-        color: GameStyle.felt,
-        border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          spacing: 12,
-          children: [
-            if (onSkip != null)
-              OutlinedButton(onPressed: onSkip, child: Text(skipText)),
-            Expanded(
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: GameStyle.crimson,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(48),
-                ),
-                onPressed: onConfirm,
-                child: Text(
-                  confirmText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+    return Row(
+      spacing: 10,
+      children: [
+        if (onSkip != null)
+          OutlinedButton(onPressed: onSkip, child: Text(skipText)),
+        Expanded(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: onConfirm == null
+                  ? null
+                  : GameStyle.glow(GameStyle.crimson),
+            ),
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+              ),
+              onPressed: onConfirm,
+              child: Text(
+                confirmText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

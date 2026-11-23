@@ -40,19 +40,32 @@ class ResultsView extends StatelessWidget {
     ];
 
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
-        const SizedBox(height: 16),
-        Icon(
-          cancelled
-              ? Icons.block
-              : winner == Team.mafia
-              ? Icons.theater_comedy
-              : Icons.location_city,
-          size: 96,
-          color: color,
+        const SizedBox(height: 8),
+        Center(
+          child: Container(
+            width: 132,
+            height: 132,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withValues(alpha: 0.16),
+              boxShadow: [
+                BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 60),
+              ],
+            ),
+            child: Icon(
+              cancelled
+                  ? Icons.block_rounded
+                  : winner == Team.mafia
+                  ? Icons.theater_comedy
+                  : Icons.location_city_rounded,
+              size: 68,
+              color: color,
+            ),
+          ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 22),
         Text(
           cancelled
               ? t.gamePhaseEnded
@@ -60,90 +73,118 @@ class ResultsView extends StatelessWidget {
               ? t.gameResultMafiaWins
               : t.gameResultTownWins,
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.headlineMedium
-              ?.copyWith(fontWeight: FontWeight.w800, color: color),
+          style: GameStyle.display(28, color: color),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 22),
         if (result != null)
           GamePanel(
-            borderColor: cancelled
+            padding: const EdgeInsets.all(20),
+            color: cancelled
                 ? null
                 : (iWon ? GameStyle.gold : GameStyle.crimson).withValues(
-                    alpha: 0.5,
+                    alpha: 0.14,
                   ),
-            child: Column(
-              spacing: 8,
+            child: Row(
+              spacing: 14,
               children: [
                 if (!cancelled)
-                  Text(
-                    iWon ? t.gameResultYouWon : t.gameResultYouLost,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: iWon ? GameStyle.gold : null,
-                    ),
-                  ),
-                if (cancelled)
-                  Text(t.gameResultCancelled, textAlign: TextAlign.center)
-                else if (stake == 0)
-                  Text(t.gameResultFreeGame, textAlign: TextAlign.center)
-                else if (iWon)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    spacing: 8,
+                  iWon
+                      ? const CoinIcon(size: 44)
+                      : const IconBlob(
+                          icon: Icons.trending_down_rounded,
+                          color: GameStyle.crimson,
+                        ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 4,
                     children: [
-                      const Icon(Icons.toll, color: GameStyle.gold),
-                      Flexible(
-                        child: Text(
-                          t.gameResultWonCoins,
-                          textAlign: TextAlign.center,
+                      if (!cancelled)
+                        Text(
+                          iWon ? t.gameResultYouWon : t.gameResultYouLost,
+                          style: GameStyle.display(
+                            19,
+                            color: iWon ? GameStyle.gold : Colors.white,
+                          ),
+                        ),
+                      Text(
+                        cancelled
+                            ? t.gameResultCancelled
+                            : stake == 0
+                            ? t.gameResultFreeGame
+                            : iWon
+                            ? t.gameResultWonCoins
+                            : t.gameResultLostCoins(t.coins(stake)),
+                        style: const TextStyle(
+                          color: GameStyle.muted,
+                          height: 1.35,
                         ),
                       ),
                     ],
-                  )
-                else
-                  Text(
-                    t.gameResultLostCoins(t.coins(stake)),
-                    textAlign: TextAlign.center,
                   ),
+                ),
               ],
             ),
           ),
         if (winnerNames.isNotEmpty) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 22),
           Text(
-            t.gameResultWinners,
+            t.gameResultWinners.toUpperCase(),
             textAlign: TextAlign.center,
-            style: const TextStyle(color: GameStyle.muted),
+            style: const TextStyle(
+              color: GameStyle.muted,
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+              letterSpacing: 1.2,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Wrap(
             alignment: WrapAlignment.center,
             spacing: 8,
             runSpacing: 8,
             children: [
               for (final n in winnerNames)
-                Chip(
-                  avatar: PlayerAvatar(name: n, size: 24),
-                  label: Text(n),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(5, 5, 12, 5),
+                  decoration: BoxDecoration(
+                    color: GameStyle.card,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 8,
+                    children: [
+                      PlayerAvatar(name: n, size: 28),
+                      Text(
+                        n,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
                 ),
             ],
           ),
         ],
-        const SizedBox(height: 32),
-        FilledButton.icon(
-          style: FilledButton.styleFrom(
-            backgroundColor: GameStyle.crimson,
-            foregroundColor: Colors.white,
-            minimumSize: const Size.fromHeight(52),
+        const SizedBox(height: 30),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: GameStyle.glow(GameStyle.crimson),
           ),
-          icon: const Icon(Icons.replay),
-          label: Text(t.gamePlayAgain),
-          onPressed: onPlayAgain,
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(56),
+            ),
+            icon: const Icon(Icons.replay_rounded),
+            label: Text(t.gamePlayAgain),
+            onPressed: onPlayAgain,
+          ),
         ),
         const SizedBox(height: 12),
         OutlinedButton(
           style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(48),
+            minimumSize: const Size.fromHeight(52),
           ),
           onPressed: onBackToLobby,
           child: Text(t.gameBackToLobby),

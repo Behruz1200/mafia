@@ -2,6 +2,7 @@ import 'package:contracts/contracts.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../core/theme.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../ui/game_style.dart';
 import 'player_table.dart';
@@ -47,35 +48,44 @@ class WaitingRoom extends StatelessWidget {
       children: [
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
             children: [
               GamePanel(
+                padding: const EdgeInsets.fromLTRB(20, 18, 14, 18),
                 child: Row(
                   children: [
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: 4,
+                        spacing: 6,
                         children: [
                           Text(
-                            t.gameInviteCode,
-                            style: const TextStyle(color: GameStyle.muted),
+                            t.gameInviteCode.toUpperCase(),
+                            style: const TextStyle(
+                              color: GameStyle.muted,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11,
+                              letterSpacing: 1.2,
+                            ),
                           ),
                           Text(
                             room.inviteCode,
-                            style: const TextStyle(
-                              fontSize: 32,
-                              letterSpacing: 6,
-                              fontWeight: FontWeight.w800,
+                            style: GameStyle.display(
+                              32,
                               color: GameStyle.gold,
-                            ),
+                            ).copyWith(letterSpacing: 5),
                           ),
                         ],
                       ),
                     ),
-                    IconButton.filledTonal(
+                    IconButton(
                       tooltip: t.gameCodeCopied,
-                      icon: const Icon(Icons.copy),
+                      style: IconButton.styleFrom(
+                        fixedSize: const Size(52, 52),
+                        backgroundColor: GameStyle.gold,
+                        foregroundColor: GameStyle.felt,
+                      ),
+                      icon: const Icon(Icons.copy_rounded),
                       onPressed: () async {
                         await Clipboard.setData(
                           ClipboardData(text: room.inviteCode),
@@ -91,27 +101,24 @@ class WaitingRoom extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              Row(
+                spacing: 10,
                 children: [
-                  Chip(
-                    avatar: const Icon(Icons.group, size: 18),
-                    label: Text(
-                      t.gamePlayersCount(
+                  Expanded(
+                    child: _Fact(
+                      icon: Icons.groups_rounded,
+                      color: GameStyle.town,
+                      text: t.gamePlayersCount(
                         seated.length,
                         room.settings.maxPlayers,
                       ),
                     ),
                   ),
-                  Chip(
-                    avatar: const Icon(
-                      Icons.toll,
-                      size: 18,
+                  Expanded(
+                    child: _Fact(
+                      icon: Icons.toll_rounded,
                       color: GameStyle.gold,
-                    ),
-                    label: Text(
-                      stake == 0
+                      text: stake == 0
                           ? t.lobbyStakeFree
                           : t.gameStakeValue(t.coins(stake)),
                     ),
@@ -124,33 +131,45 @@ class WaitingRoom extends StatelessWidget {
           ),
         ),
         Container(
-          padding: const EdgeInsets.all(16),
-          color: GameStyle.felt,
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          decoration: const BoxDecoration(
+            color: Palette.surfaceSheet,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+          ),
           child: SafeArea(
             top: false,
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              spacing: 8,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 10,
               children: [
                 if (!enough)
                   Text(
                     t.gameNeedMorePlayers(room.settings.minPlayers),
+                    textAlign: TextAlign.center,
                     style: const TextStyle(color: GameStyle.muted),
                   ),
                 if (isHost)
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: GameStyle.crimson,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(52),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: enough
+                          ? GameStyle.glow(GameStyle.crimson)
+                          : null,
                     ),
-                    icon: const Icon(Icons.play_arrow),
-                    label: Text(t.gameStart),
-                    onPressed: enough ? onStart : null,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(56),
+                      ),
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: Text(t.gameStart),
+                      onPressed: enough ? onStart : null,
+                    ),
                   )
                 else
                   Text(
                     t.gameWaitingForHost,
+                    textAlign: TextAlign.center,
                     style: const TextStyle(color: GameStyle.muted),
                   ),
               ],
@@ -158,6 +177,36 @@ class WaitingRoom extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// A small fact about the room: an icon on a tint and a line of text.
+class _Fact extends StatelessWidget {
+  const _Fact({required this.icon, required this.color, required this.text});
+
+  final IconData icon;
+  final Color color;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return GamePanel(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        spacing: 10,
+        children: [
+          IconBlob(icon: icon, color: color, size: 36),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

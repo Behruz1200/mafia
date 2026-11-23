@@ -70,25 +70,54 @@ class _CardFrame extends StatelessWidget {
     return AspectRatio(
       aspectRatio: 0.68,
       child: Container(
-        padding: const EdgeInsets.all(20),
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(32),
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: colors,
           ),
-          border: Border.all(color: GameStyle.gold.withValues(alpha: 0.5)),
-          boxShadow: const [
-            BoxShadow(
-              blurRadius: 24,
-              color: Colors.black54,
-              offset: Offset(0, 8),
+          boxShadow: GameStyle.glow(colors.first),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -60,
+              top: -60,
+              child: Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.08),
+                ),
+              ),
             ),
+            Padding(padding: const EdgeInsets.all(22), child: child),
           ],
         ),
-        child: child,
       ),
+    );
+  }
+}
+
+/// The big round badge in the middle of a card.
+class _Badge extends StatelessWidget {
+  const _Badge({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 116,
+      height: 116,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.black.withValues(alpha: 0.22),
+      ),
+      child: Icon(icon, size: 62, color: Colors.white),
     );
   }
 }
@@ -100,25 +129,27 @@ class _Back extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     return _CardFrame(
-      colors: const [Color(0xFF3A0F14), Color(0xFF12161F)],
+      colors: const [Color(0xFF4B2A9E), Color(0xFF1A1040)],
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        spacing: 16,
+        spacing: 18,
         children: [
-          const Icon(Icons.theater_comedy, size: 72, color: GameStyle.gold),
+          const _Badge(icon: Icons.question_mark_rounded),
           Text(
             t.appTitle.toUpperCase(),
-            style: const TextStyle(
-              letterSpacing: 6,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: GameStyle.gold,
-            ),
+            style: GameStyle.display(30, color: Colors.white),
           ),
-          Text(
-            t.gameTapToReveal,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: GameStyle.muted),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              t.gameTapToReveal,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w700, height: 1.35),
+            ),
           ),
         ],
       ),
@@ -135,30 +166,59 @@ class _Front extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
-    final color = GameStyle.teamColor(role.team);
     return _CardFrame(
-      colors: [color.withValues(alpha: 0.55), GameStyle.felt],
+      colors: GameStyle.teamGradient(role.team),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        spacing: 12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(GameStyle.roleIcon(role), size: 72, color: Colors.white),
+          // "Town" over a Doctor; nothing over the Mafia, which says it.
           Text(
-            t.roleName(role),
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-          ),
-          if (t.teamName(role.team) != t.roleName(role))
-            Chip(
-              label: Text(t.teamName(role.team)),
-              backgroundColor: color.withValues(alpha: 0.3),
-              side: BorderSide.none,
+            t.teamName(role.team) == t.roleName(role)
+                ? ''
+                : t.teamName(role.team).toUpperCase(),
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+              letterSpacing: 1.4,
+              color: Colors.white.withValues(alpha: 0.85),
             ),
-          Text(t.roleGoal(role), textAlign: TextAlign.center),
+          ),
+          const Spacer(),
+          Center(child: _Badge(icon: GameStyle.roleIcon(role))),
+          const SizedBox(height: 16),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              t.roleName(role).toUpperCase(),
+              style: GameStyle.display(34, color: Colors.white),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            t.roleGoal(role),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              height: 1.4,
+              color: Colors.white,
+            ),
+          ),
+          const Spacer(),
           if (teammateNames.isNotEmpty)
-            Text(
-              t.gameTeammates(teammateNames.join(', ')),
-              textAlign: TextAlign.center,
-              style: TextStyle(color: color, fontWeight: FontWeight.w600),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Text(
+                t.gameTeammates(teammateNames.join(', ')),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
             ),
         ],
       ),
@@ -182,14 +242,19 @@ class RolePeekButton extends StatelessWidget {
     final t = AppLocalizations.of(context);
     return IconButton(
       tooltip: t.gameMyRole,
-      icon: const Icon(Icons.style),
+      style: IconButton.styleFrom(
+        fixedSize: const Size(52, 52),
+        backgroundColor: GameStyle.card,
+        foregroundColor: GameStyle.gold,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      icon: const Icon(Icons.style_rounded),
       onPressed: () => showModalBottomSheet<void>(
         context: context,
-        backgroundColor: GameStyle.felt,
         builder: (_) => Padding(
-          padding: const EdgeInsets.fromLTRB(48, 24, 48, 32),
+          padding: const EdgeInsets.fromLTRB(48, 8, 48, 40),
           child: SizedBox(
-            height: 380,
+            height: 400,
             child: Center(
               child: RoleCard(
                 role: role,

@@ -4,14 +4,17 @@ import 'package:livekit_client/livekit_client.dart' as lk;
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/providers.dart';
+import '../../core/theme.dart';
 import '../../l10n/generated/app_localizations.dart';
 import 'call_providers.dart';
 import 'call_state.dart';
 import 'data/livekit_call_controller.dart';
 
-final _participantsProvider = StreamProvider.autoDispose<List<CallParticipant>>(
-  (ref) => ref.watch(callControllerProvider).watchParticipants(),
-);
+/// Everyone in the call right now, with camera, mic and speaking state.
+final callParticipantsProvider =
+    StreamProvider.autoDispose<List<CallParticipant>>(
+      (ref) => ref.watch(callControllerProvider).watchParticipants(),
+    );
 
 final _localProvider = StreamProvider.autoDispose<LocalCallState?>((ref) {
   final call = ref.watch(callControllerProvider);
@@ -26,21 +29,24 @@ final _gameProvider = StreamProvider.autoDispose
           ref.watch(roomRepositoryProvider).watchPublicState(roomId),
     );
 
-/// Stream 3 (video) owns this folder. The video grid with camera and mic
-/// toggles, which the game screen embeds. LiveKit lives only in here.
+/// Stream 3 (video) owns this folder. LiveKit lives only in here.
 ///
-/// Give it the [roomId] and it joins that room's call, follows the game
-/// (muted at night, Mafia call for Mafia) and leaves when it goes away.
-class CallView extends ConsumerStatefulWidget {
-  const CallView({super.key, this.roomId});
+/// The video is split in two so the game can put each player's camera in
+/// their seat at the table:
+///  * [CallControls] joins the room's call while it is on screen, follows
+///    the game (muted at night, Mafia call for Mafia), says why when the
+///    camera or mic is off, and has the camera and mic toggles.
+///  * [SeatVideo] shows one player's camera, or a placeholder.
+class CallControls extends ConsumerStatefulWidget {
+  const CallControls({super.key, this.roomId});
 
   final RoomId? roomId;
 
   @override
-  ConsumerState<CallView> createState() => _CallViewState();
+  ConsumerState<CallControls> createState() => _CallControlsState();
 }
 
-class _CallViewState extends ConsumerState<CallView> {
+class _CallControlsState extends ConsumerState<CallControls> {
   // Used only with the offline fake, which has no local state of its own.
   bool _fakeCamera = false;
   bool _fakeMic = false;
@@ -52,7 +58,7 @@ class _CallViewState extends ConsumerState<CallView> {
     if (roomId != null) ref.watch(callSessionProvider(roomId));
 
     final call = ref.watch(callControllerProvider);
-    final people = ref.watch(_participantsProvider).value ?? const [];
+    final people = ref.watch(callParticipantsProvider).value ?? const [];
     final game = roomId == null ? null : ref.watch(_gameProvider(roomId)).value;
     final me = ref.watch(sessionProvider).value?.userId;
     final local =
@@ -65,16 +71,16 @@ class _CallViewState extends ConsumerState<CallView> {
           connected: people.isNotEmpty,
         );
 
-    final players = {
-      for (final p in game?.players ?? const <Player>[]) p.userId: p,
-    };
     final iAmOut =
         me != null &&
-        players[me]?.isAlive == false &&
+        (game?.players ?? const <Player>[]).any(
+          (p) => p.userId == me && !p.isAlive,
+        ) &&
         game?.phase != GamePhase.ended;
+    final mafiaCall = local.activeChannel == CallChannel.mafia;
     final banner = switch (()) {
       _ when local.mediaBlocked => t.callMediaBlocked,
-      _ when local.activeChannel == CallChannel.mafia => t.callMafiaPrivate,
+      _ when mafiaCall => t.callMafiaPrivate,
       _ when game?.phase == GamePhase.night => t.callNightMuted,
       _ when iAmOut => t.callYouAreOut,
       _ when !local.connected => t.callConnecting,
@@ -95,141 +101,123 @@ class _CallViewState extends ConsumerState<CallView> {
       await call.setMic(on: !local.micOn);
     }
 
-    final columns = people.length > 9 ? 4 : 3;
-    return Column(
+    return Row(
+      spacing: 10,
       children: [
-        if (banner != null)
-          Container(
-            width: double.infinity,
-            color: Theme.of(context).colorScheme.secondaryContainer,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Text(banner, textAlign: TextAlign.center),
-          ),
         Expanded(
-          child: GridView.count(
-            crossAxisCount: columns,
-            childAspectRatio: 3 / 4,
-            padding: const EdgeInsets.all(4),
-            mainAxisSpacing: 4,
-            crossAxisSpacing: 4,
-            children: [
-              for (final p in people)
-                _Tile(
-                  key: ValueKey(p.userId),
-                  person: p,
-                  name: p.userId == me
-                      ? t.callYou
-                      : players[p.userId]?.displayName ??
-                            (call is LiveKitCallController
-                                ? call.displayNameFor(p.userId)
-                                : null) ??
-                            p.userId,
-                  isOut: players[p.userId]?.isAlive == false,
-                  video: call is LiveKitCallController
-                      ? call.videoTrackFor(p.userId)
-                      : null,
+          child: banner == null
+              ? const SizedBox.shrink()
+              : Row(
+                  spacing: 8,
+                  children: [
+                    Icon(
+                      mafiaCall
+                          ? Icons.lock_rounded
+                          : game?.phase == GamePhase.night
+                          ? Icons.bedtime_rounded
+                          : Icons.info_outline_rounded,
+                      size: 18,
+                      color: mafiaCall ? Palette.accent : Palette.muted,
+                    ),
+                    Expanded(
+                      child: Text(
+                        banner,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: mafiaCall ? Palette.text : Palette.muted,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-            ],
-          ),
         ),
-        Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton.filledTonal(
-                key: const ValueKey('call-camera'),
-                icon: Icon(
-                  local.cameraOn ? Icons.videocam : Icons.videocam_off,
-                ),
-                tooltip: local.cameraOn
-                    ? t.callTurnCameraOff
-                    : t.callTurnCameraOn,
-                onPressed: local.canPublish ? toggleCamera : null,
-              ),
-              const SizedBox(width: 16),
-              IconButton.filledTonal(
-                key: const ValueKey('call-mic'),
-                icon: Icon(local.micOn ? Icons.mic : Icons.mic_off),
-                tooltip: local.micOn ? t.callTurnMicOff : t.callTurnMicOn,
-                onPressed: local.canPublish ? toggleMic : null,
-              ),
-            ],
-          ),
+        _toggle(
+          key: const ValueKey('call-camera'),
+          on: local.cameraOn,
+          iconOn: Icons.videocam_rounded,
+          iconOff: Icons.videocam_off_rounded,
+          tooltip: local.cameraOn ? t.callTurnCameraOff : t.callTurnCameraOn,
+          onPressed: local.canPublish ? toggleCamera : null,
+        ),
+        _toggle(
+          key: const ValueKey('call-mic'),
+          on: local.micOn,
+          iconOn: Icons.mic_rounded,
+          iconOff: Icons.mic_off_rounded,
+          tooltip: local.micOn ? t.callTurnMicOff : t.callTurnMicOn,
+          onPressed: local.canPublish ? toggleMic : null,
         ),
       ],
     );
   }
 }
 
-class _Tile extends StatelessWidget {
-  const _Tile({
+/// A big rounded camera or mic button: cyan while on.
+IconButton _toggle({
+  required Key key,
+  required bool on,
+  required IconData iconOn,
+  required IconData iconOff,
+  required String tooltip,
+  required VoidCallback? onPressed,
+}) {
+  return IconButton(
+    key: key,
+    tooltip: tooltip,
+    onPressed: onPressed,
+    icon: Icon(on ? iconOn : iconOff),
+    style: IconButton.styleFrom(
+      fixedSize: const Size(56, 52),
+      backgroundColor: on ? Palette.cyan : Palette.surface,
+      foregroundColor: on ? Palette.background : Palette.text,
+      disabledBackgroundColor: Palette.surface.withValues(alpha: 0.6),
+      disabledForegroundColor: Palette.muted.withValues(alpha: 0.6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    ),
+  );
+}
+
+/// One player's camera, filling its box; [placeholder] when there is no
+/// picture (camera off, not in the call, or night). A ring shows who is
+/// talking.
+class SeatVideo extends ConsumerWidget {
+  const SeatVideo({
     super.key,
-    required this.person,
-    required this.name,
-    required this.isOut,
-    this.video,
+    required this.userId,
+    required this.placeholder,
+    this.radius = 18,
   });
 
-  final CallParticipant person;
-  final String name;
-  final bool isOut;
-  final lk.VideoTrack? video;
+  final UserId userId;
+  final Widget placeholder;
+  final double radius;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final video = this.video;
-    final face = video != null && person.cameraOn
-        ? lk.VideoTrackRenderer(video, fit: lk.VideoViewFit.cover)
-        : Center(
-            child: CircleAvatar(
-              radius: 24,
-              child: Text(name.isEmpty ? '?' : name.characters.first),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final call = ref.watch(callControllerProvider);
+    final people = ref.watch(callParticipantsProvider).value ?? const [];
+    final person = people.where((p) => p.userId == userId).firstOrNull;
+    final video = person != null && person.cameraOn
+        ? (call is LiveKitCallController ? call.videoTrackFor(userId) : null)
+        : null;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (video != null)
+          lk.VideoTrackRenderer(video, fit: lk.VideoViewFit.cover)
+        else
+          placeholder,
+        if (person != null && person.isSpeaking)
+          DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(radius),
+              border: Border.all(color: Palette.cyan, width: 3),
             ),
-          );
-    return Opacity(
-      opacity: isOut ? 0.4 : 1,
-      child: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: colors.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: person.isSpeaking ? colors.primary : Colors.transparent,
-            width: 3,
           ),
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            face,
-            Positioned(
-              left: 4,
-              right: 4,
-              bottom: 4,
-              child: Row(
-                children: [
-                  if (!person.micOn)
-                    const Icon(Icons.mic_off, size: 14, color: Colors.white),
-                  Expanded(
-                    child: Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        shadows: [Shadow(blurRadius: 2)],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 }

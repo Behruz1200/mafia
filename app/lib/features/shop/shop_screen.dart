@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/providers.dart';
+import '../../core/theme.dart';
 import '../../l10n/generated/app_localizations.dart';
 import 'data/http_wallet_repository.dart';
 import 'data/store_billing.dart';
@@ -116,7 +117,10 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
                 for (final p in list)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.toll),
+                    leading: const Icon(
+                      Icons.toll_rounded,
+                      color: Palette.gold,
+                    ),
                     title: Text(t.coins(p.coins + p.bonusCoins)),
                     subtitle: p.bonusCoins > 0
                         ? Text(t.shopBonus(p.bonusCoins))

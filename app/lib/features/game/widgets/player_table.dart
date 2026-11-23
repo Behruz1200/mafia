@@ -1,14 +1,19 @@
 import 'package:contracts/contracts.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../core/theme.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../ui/game_style.dart';
 import '../ui/game_text.dart';
 
+/// Shows what fills a seat: a player's camera, given their id and the
+/// picture to show when there is no video.
+typedef SeatFace = Widget Function(UserId userId, Widget placeholder);
+
 /// Everyone at the table, in seat order. Shows who is alive, open vote
 /// counts, and what only I know (my Mafia teammates, my check results).
 /// When [selectable] is not empty, those seats can be tapped to pick a
-/// target.
+/// target. With [face], each seat shows that player's camera.
 class PlayerTable extends StatelessWidget {
   const PlayerTable({
     super.key,
@@ -19,6 +24,7 @@ class PlayerTable extends StatelessWidget {
     this.selectable = const {},
     this.selected,
     this.onSelect,
+    this.face,
   });
 
   final List<Player> players;
@@ -28,6 +34,7 @@ class PlayerTable extends StatelessWidget {
   final Set<UserId> selectable;
   final UserId? selected;
   final ValueChanged<UserId>? onSelect;
+  final SeatFace? face;
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +55,7 @@ class PlayerTable extends StatelessWidget {
             crossAxisCount: columns,
             mainAxisSpacing: 8,
             crossAxisSpacing: 8,
-            childAspectRatio: 0.78,
+            childAspectRatio: 0.76,
           ),
           itemBuilder: (context, i) {
             final p = seats[i];
@@ -62,6 +69,7 @@ class PlayerTable extends StatelessWidget {
               myVote: me != null && votes[me] == p.userId,
               selectable: selectable.contains(p.userId),
               selected: selected == p.userId,
+              face: face,
               onTap: selectable.contains(p.userId) && onSelect != null
                   ? () => onSelect!(p.userId)
                   : null,
@@ -84,6 +92,7 @@ class SeatTile extends StatelessWidget {
     this.myVote = false,
     this.selectable = false,
     this.selected = false,
+    this.face,
     this.onTap,
   });
 
@@ -95,119 +104,196 @@ class SeatTile extends StatelessWidget {
   final bool myVote;
   final bool selectable;
   final bool selected;
+  final SeatFace? face;
   final VoidCallback? onTap;
+
+  static const _radius = 18.0;
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     final dead = !player.isAlive;
-    final border = selected
-        ? GameStyle.gold
+    final name = isMe ? t.gameYou : player.displayName;
+    final tint = playerColor(player.displayName);
+
+    final placeholder = DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: dead
+              ? const [Palette.surfaceHigh, Palette.surface]
+              : [tint, Color.lerp(tint, Palette.background, 0.55)!],
+        ),
+      ),
+      child: Align(
+        alignment: const Alignment(0, -0.25),
+        child: Text(
+          player.displayName.isEmpty
+              ? '?'
+              : player.displayName.characters.first.toUpperCase(),
+          style: GameStyle.display(
+            30,
+            color: Colors.white.withValues(alpha: dead ? 0.25 : 0.6),
+          ),
+        ),
+      ),
+    );
+
+    final (ringColor, ringWidth) = selected
+        ? (Colors.white, 3.0)
         : selectable
-        ? Colors.white.withValues(alpha: 0.35)
+        ? (Colors.white.withValues(alpha: 0.45), 1.5)
         : isTeammate
-        ? GameStyle.crimson.withValues(alpha: 0.6)
-        : Colors.white.withValues(alpha: 0.06);
+        ? (Palette.accent, 2.0)
+        : isMe
+        ? (Palette.gold, 2.0)
+        : (Colors.transparent, 0.0);
+
+    final tag = checked != null
+        ? _Tag(text: t.teamName(checked!), color: GameStyle.teamColor(checked!))
+        : isTeammate
+        ? _Tag(text: t.gameTeamMafia, color: Palette.accent)
+        : !player.isConnected
+        ? _Tag(text: t.gameOffline, color: Palette.surfaceHigh)
+        : null;
+
     return Semantics(
       button: onTap != null,
       selected: selected,
       label: player.displayName,
-      child: Material(
-        color: selected
-            ? GameStyle.gold.withValues(alpha: 0.16)
-            : GameStyle.card.withValues(alpha: dead ? 0.4 : 0.85),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: border, width: selected ? 2 : 1),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Stack(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(4, 10, 4, 6),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  spacing: 6,
-                  children: [
-                    Stack(
-                      clipBehavior: Clip.none,
+      child: AnimatedScale(
+        scale: selected ? 1.04 : 1,
+        duration: const Duration(milliseconds: 150),
+        child: Material(
+          color: Palette.surface,
+          borderRadius: BorderRadius.circular(_radius),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Opacity(
+              opacity: dead ? 0.55 : 1,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (face != null && !dead)
+                    face!(player.userId, placeholder)
+                  else
+                    placeholder,
+                  // Darkens the bottom so the name reads over any video.
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: [0.45, 1],
+                        colors: [Colors.transparent, Color(0xB3000000)],
+                      ),
+                    ),
+                  ),
+                  if (dead)
+                    const Center(
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 44,
+                        color: Palette.accent,
+                      ),
+                    ),
+                  Positioned(
+                    left: 7,
+                    top: 5,
+                    child: Row(
+                      spacing: 2,
                       children: [
-                        PlayerAvatar(name: player.displayName, dimmed: dead),
-                        if (dead)
-                          const Positioned.fill(
-                            child: Icon(
-                              Icons.close,
-                              color: GameStyle.crimson,
-                              size: 40,
-                            ),
+                        Text(
+                          '${player.seat + 1}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white.withValues(alpha: 0.8),
                           ),
+                        ),
                         if (player.isHost)
-                          const Positioned(
-                            top: -8,
-                            right: -8,
-                            child: Icon(
-                              Icons.star,
-                              size: 18,
-                              color: GameStyle.gold,
+                          Tooltip(
+                            message: t.gameHost,
+                            child: const Icon(
+                              Icons.star_rounded,
+                              size: 14,
+                              color: Palette.gold,
                             ),
                           ),
                       ],
                     ),
-                    Text(
-                      isMe ? t.gameYou : player.displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontWeight: isMe ? FontWeight.w800 : FontWeight.w500,
-                        color: dead ? GameStyle.muted : null,
-                        decoration: dead ? TextDecoration.lineThrough : null,
-                      ),
-                    ),
-                    if (checked != null)
-                      _Tag(
-                        text: t.teamName(checked!),
-                        color: GameStyle.teamColor(checked!),
-                      )
-                    else if (isTeammate)
-                      _Tag(text: t.gameTeamMafia, color: GameStyle.crimson)
-                    else if (!player.isConnected)
-                      _Tag(text: t.gameOffline, color: GameStyle.muted),
-                  ],
-                ),
-              ),
-              Positioned(
-                left: 6,
-                top: 4,
-                child: Text(
-                  '${player.seat + 1}',
-                  style: const TextStyle(fontSize: 11, color: GameStyle.muted),
-                ),
-              ),
-              if (votes > 0)
-                Positioned(
-                  right: 4,
-                  top: 4,
-                  child: Tooltip(
-                    message: t.gameVotes(votes),
-                    child: CircleAvatar(
-                      radius: 11,
-                      backgroundColor: myVote
-                          ? GameStyle.gold
-                          : GameStyle.crimson,
-                      child: Text(
-                        '$votes',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.black,
+                  ),
+                  if (votes > 0)
+                    Positioned(
+                      right: 5,
+                      top: 5,
+                      child: Tooltip(
+                        message: t.gameVotes(votes),
+                        child: Container(
+                          constraints: const BoxConstraints(minWidth: 24),
+                          height: 24,
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: myVote ? Palette.gold : Palette.accent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '$votes',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: myVote ? Palette.background : Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     ),
+                  Positioned(
+                    left: 5,
+                    right: 5,
+                    bottom: 7,
+                    child: Column(
+                      spacing: 4,
+                      children: [
+                        ?tag,
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isMe
+                                ? FontWeight.w800
+                                : FontWeight.w700,
+                            decoration: dead
+                                ? TextDecoration.lineThrough
+                                : null,
+                            decorationColor: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-            ],
+                  // The ring sits on top so video never covers it.
+                  if (ringWidth > 0)
+                    IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(_radius),
+                          border: Border.all(
+                            color: ringColor,
+                            width: ringWidth,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -224,19 +310,22 @@ class _Tag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(6),
+        color: color,
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        text,
+        text.toUpperCase(),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          fontSize: 11,
-          color: color,
-          fontWeight: FontWeight.w700,
+          fontSize: 9,
+          letterSpacing: 0.6,
+          fontWeight: FontWeight.w800,
+          color: color.computeLuminance() > 0.5
+              ? Palette.background
+              : Colors.white,
         ),
       ),
     );

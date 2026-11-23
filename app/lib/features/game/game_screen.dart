@@ -47,7 +47,6 @@ class _GameScreenState extends ConsumerState<GameScreen> {
               child: Text(t.gameStay),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: GameStyle.crimson),
               onPressed: () => Navigator.pop(context, true),
               child: Text(t.gameLeave),
             ),
@@ -126,11 +125,21 @@ class _GameScreenState extends ConsumerState<GameScreen> {
           backgroundColor: Colors.transparent,
           appBar: AppBar(
             backgroundColor: Colors.transparent,
-            leading: IconButton(
-              tooltip: t.gameLeave,
-              icon: const Icon(Icons.close),
-              onPressed: _leave,
+            leading: Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: IconButton(
+                tooltip: t.gameLeave,
+                style: IconButton.styleFrom(
+                  backgroundColor: GameStyle.card,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.close_rounded),
+                onPressed: _leave,
+              ),
             ),
+            leadingWidth: 64,
             title: Text(showWaiting ? t.gameWaitingTitle : t.appTitle),
             actions: [
               if (isDemo)
@@ -138,9 +147,12 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                   padding: const EdgeInsets.only(right: 12),
                   child: Chip(
                     visualDensity: VisualDensity.compact,
-                    label: Text(t.gameDemoBadge),
+                    label: Text(
+                      t.gameDemoBadge,
+                      style: const TextStyle(color: GameStyle.gold),
+                    ),
                     side: BorderSide.none,
-                    backgroundColor: GameStyle.gold.withValues(alpha: 0.18),
+                    backgroundColor: GameStyle.gold.withValues(alpha: 0.16),
                   ),
                 ),
             ],
