@@ -33,8 +33,12 @@ class TestClock {
 }
 
 class Harness {
-  Harness({AppleIdVerifier? apple, Map<String, String> testPhones = const {}})
-    : clock = TestClock() {
+  Harness({
+    AppleIdVerifier? apple,
+    Map<String, String> testPhones = const {},
+    bool guestSignIn = false,
+    int guestsPerHour = 30,
+  }) : clock = TestClock() {
     store = MemoryAccountStore(now: clock.call);
     service = AuthService(
       config: AuthConfig(
@@ -44,6 +48,8 @@ class Harness {
           stakeCountries: {'UZ'},
         ),
         testPhones: testPhones,
+        guestSignIn: guestSignIn,
+        guestsPerHour: guestsPerHour,
       ),
       store: store,
       sms: sms,

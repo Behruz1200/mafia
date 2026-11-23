@@ -11,6 +11,7 @@ abstract final class ApiRoutes {
   static const authPhoneStart = '/v1/auth/phone/start'; // send SMS code
   static const authPhoneVerify = '/v1/auth/phone/verify'; // -> AuthSession
   static const authApple = '/v1/auth/apple'; // -> AuthSession
+  static const authGuest = '/v1/auth/guest'; // -> AuthSession (test builds)
   static const authRefresh = '/v1/auth/refresh'; // -> AuthSession
   static const authSignOut = '/v1/auth/sign-out'; // revokes the refresh token
   static const me = '/v1/me'; // GET/PATCH profile, DELETE account

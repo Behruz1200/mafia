@@ -45,6 +45,8 @@ only in this server's PostgreSQL (tables in `migrations/0002_accounts_users.sql`
 | `SMS_TEXT` | no | Default `Mafia: tasdiqlash kodi {code}`. Must match the template approved in the Eskiz cabinet. |
 | `APPLE_BUNDLE_IDS` | for Apple | The iOS bundle id, comma-separated if several. |
 | `AUTH_TEST_PHONES` | no | `+998900000001=123456`: fixed code, no SMS. For App Store review only. |
+| `GUEST_SIGN_IN` | no | `true`: `POST /v1/auth/guest` makes a new player with no phone (live tests). Off by default; keep off at launch, every guest gets welcome coins. |
+| `GUEST_PER_HOUR` | no | New guests allowed per hour, server-wide (default 30). |
 | `LAUNCH_COUNTRIES` | no | Shared with the rest of the server, default `UZ`. |
 
 ## Tests

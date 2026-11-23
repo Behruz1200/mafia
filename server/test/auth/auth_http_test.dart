@@ -171,4 +171,10 @@ void main() {
     );
     expect(res.statusCode, 503);
   });
+
+  test('guest sign-in is off unless GUEST_SIGN_IN is on', () async {
+    final (status, body) = await call('POST', ApiRoutes.authGuest);
+    expect(status, 403);
+    expect((body! as Map)['error'], 'guest_disabled');
+  });
 }

@@ -149,6 +149,7 @@ jobs:
         run: >-
           flutter build web --release --no-web-resources-cdn
           --dart-define=USE_FAKES=false
+          --dart-define=GUEST_SIGN_IN=true
       - uses: actions/upload-artifact@v4
         with:
           name: mafia-web

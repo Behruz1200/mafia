@@ -56,6 +56,10 @@ class AuthModule extends ServerModule {
       }),
     );
     r.post(
+      ApiRoutes.authGuest,
+      _handle((s, req) async => json((await s.signInAsGuest()).toJson())),
+    );
+    r.post(
       ApiRoutes.authRefresh,
       _handle((s, req) async {
         final body = RefreshRequest.fromJson(await _body(req));

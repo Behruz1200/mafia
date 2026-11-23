@@ -17,6 +17,10 @@ abstract final class AppConfig {
 
   static const _apiBaseUrl = String.fromEnvironment('API_BASE_URL');
 
+  /// Shows "Play as guest" on the sign-in page (live test builds). The
+  /// server must also allow it (`GUEST_SIGN_IN=true`).
+  static const guestSignIn = bool.fromEnvironment('GUEST_SIGN_IN');
+
   /// When true (the default until the server parts land), every repository
   /// is a fake from `package:contracts/testing.dart`, so the app runs with
   /// no backend at all.
