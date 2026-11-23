@@ -58,6 +58,7 @@ class PublicGameState {
     required this.players,
     this.phaseEndsAt,
     this.votes = const {},
+    this.skipVotes = const [],
     this.log = const [],
     this.winner,
   });
@@ -73,6 +74,10 @@ class PublicGameState {
 
   /// Open votes during [GamePhase.voting]: voter -> target (null = skip).
   final Map<UserId, UserId?> votes;
+
+  /// Living players who agreed to end this phase's timer early
+  /// (`SkipPhase`). Cleared whenever the phase changes.
+  final List<UserId> skipVotes;
   final List<PublicEvent> log;
 
   /// Set once [phase] is [GamePhase.ended]. Null if the match was cancelled.
@@ -88,6 +93,7 @@ class PublicGameState {
     'phaseEndsAt': phaseEndsAt == null ? null : encodeTime(phaseEndsAt!),
     'players': [for (final p in players) p.toJson()],
     'votes': votes,
+    'skipVotes': skipVotes,
     'log': [for (final e in log) e.toJson()],
     'winner': winner?.name,
   };
@@ -102,6 +108,7 @@ class PublicGameState {
     votes: (j['votes'] as Json? ?? const {}).map(
       (k, v) => MapEntry(k, v as String?),
     ),
+    skipVotes: decodeStrings(j['skipVotes']),
     log: decodeList(j['log'], PublicEvent.fromJson),
     winner: j['winner'] == null ? null : decodeEnum(Team.values, j['winner']),
   );

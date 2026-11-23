@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../core/theme.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../call/call_view.dart';
 import '../ui/game_style.dart';
 import 'player_table.dart';
 
@@ -126,7 +127,14 @@ class WaitingRoom extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              PlayerTable(players: seated, me: me),
+              // Cameras work here too, so friends can say hello and check
+              // their camera and mic before the match.
+              PlayerTable(
+                players: seated,
+                me: me,
+                face: (id, placeholder) =>
+                    SeatVideo(userId: id, placeholder: placeholder),
+              ),
             ],
           ),
         ),
@@ -143,6 +151,7 @@ class WaitingRoom extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: 10,
               children: [
+                CallControls(roomId: room.id),
                 if (!enough)
                   Text(
                     t.gameNeedMorePlayers(room.settings.minPlayers),

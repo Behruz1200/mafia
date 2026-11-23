@@ -608,6 +608,7 @@ class RoomService implements RealtimeRooms {
         p.copyWith(isConnected: hub.isOnline(p.userId)),
     ],
     votes: s.votes,
+    skipVotes: s.skipVotes,
     log: s.log,
     winner: s.winner,
   );

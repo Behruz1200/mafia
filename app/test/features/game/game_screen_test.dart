@@ -9,6 +9,7 @@ import 'harness.dart';
 PublicGameState _state(
   GamePhase phase, {
   Map<UserId, UserId?> votes = const {},
+  List<UserId> skipVotes = const [],
   List<PublicEvent> log = const [],
   Team? winner,
 }) {
@@ -20,6 +21,7 @@ PublicGameState _state(
     round: 1,
     players: s.players,
     votes: votes,
+    skipVotes: skipVotes,
     log: log,
     winner: winner,
   );
@@ -160,5 +162,61 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Play again'), findsOneWidget);
+  });
+
+  testWidgets('skip timer counts agreements and can be taken back', (
+    tester,
+  ) async {
+    final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+    final day = _state(GamePhase.day, skipVotes: const ['user_1', 'user_2']);
+    final alive = day.alive.length;
+    repo
+      ..emitPublic(day)
+      ..emitPrivate(
+        const PrivatePlayerState(
+          userId: 'user_0',
+          role: Role.civilian,
+          allowedActions: ['skipPhase'],
+        ),
+      );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Skip timer · 2/$alive'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('skip-timer')));
+    await tester.pump();
+    expect((repo.sent.single as SkipPhase).skip, isTrue);
+
+    repo.emitPublic(
+      _state(GamePhase.day, skipVotes: const ['user_1', 'user_2', 'user_0']),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('You want to skip · 3/$alive'), findsOneWidget);
+    await tester.tap(find.text('Undo'));
+    await tester.pump();
+    expect((repo.sent.last as SkipPhase).skip, isFalse);
+  });
+
+  testWidgets('no skip button for players who cannot skip', (tester) async {
+    final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+    repo
+      ..emitPublic(_state(GamePhase.day))
+      ..emitPrivate(samplePrivateState());
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('skip-timer')), findsNothing);
+  });
+
+  testWidgets('waiting room has camera and mic and a refresh button', (
+    tester,
+  ) async {
+    final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+    repo.emitPublic(_state(GamePhase.lobby));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('call-camera')), findsOneWidget);
+    expect(find.byKey(const ValueKey('call-mic')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('refresh-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Refreshed'), findsOneWidget);
+    expect(find.text('K7QF2'), findsOneWidget);
   });
 }

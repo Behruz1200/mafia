@@ -47,6 +47,12 @@ void main() {
       'me',
     );
     expect(a, isA<NightKill>().having((k) => k.actorId, 'actor', 'me'));
+    expect(
+      stampActor(const SkipPhase(actorId: 'x', skip: false), 'me'),
+      isA<SkipPhase>()
+          .having((k) => k.actorId, 'actor', 'me')
+          .having((k) => k.skip, 'skip', false),
+    );
     expect(stampActor(const PhaseTimeout(), 'me'), isNull);
     expect(stampActor(const PlayerLeft(userId: 'x'), 'me'), isNull);
   });

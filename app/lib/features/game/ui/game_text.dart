@@ -48,6 +48,7 @@ extension GameText on AppLocalizations {
       },
       'nobodyDied' => gameEventNobodyDied,
       'voteTied' => gameEventVoteTied,
+      'phaseSkipped' => gameEventPhaseSkipped,
       _ => null,
     };
   }

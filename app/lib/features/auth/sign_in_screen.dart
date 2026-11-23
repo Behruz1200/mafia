@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/config.dart';
+import '../../core/top_bar_buttons.dart';
 import '../../core/providers.dart';
 import '../../core/routes.dart';
 import '../../core/theme.dart';
@@ -219,6 +220,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+          // Friends land here first, so the language is one tap away.
+          const SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(12, 10, 14, 0),
+                child: LanguageButton(),
+              ),
             ),
           ),
         ],

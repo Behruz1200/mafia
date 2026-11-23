@@ -195,5 +195,16 @@
   "shopKindPayout": "Match winnings",
   "shopKindHouseFee": "House fee",
   "shopKindAdjustment": "Correction",
-  "shopRetry": "Try again"
+  "shopRetry": "Try again",
+  "gameSkipTimer": "Skip timer",
+  "gameSkipTimerCount": "Skip timer · {count}/{total}",
+  "@gameSkipTimerCount": {"placeholders": {"count": {"type": "int"}, "total": {"type": "int"}}},
+  "gameSkipAgreed": "You want to skip · {count}/{total}",
+  "@gameSkipAgreed": {"placeholders": {"count": {"type": "int"}, "total": {"type": "int"}}},
+  "gameSkipHint": "The timer ends early only when every player taps Skip.",
+  "gameSkipUndo": "Undo",
+  "gameEventPhaseSkipped": "Everyone agreed to skip the timer",
+  "languageTitle": "Language",
+  "refresh": "Refresh",
+  "refreshDone": "Refreshed"
 }

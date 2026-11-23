@@ -106,5 +106,6 @@ GameAction? stampActor(GameAction a, UserId userId) => switch (a) {
     targetId: targetId,
   ),
   CastVote(:final targetId) => CastVote(actorId: userId, targetId: targetId),
+  SkipPhase(:final skip) => SkipPhase(actorId: userId, skip: skip),
   PhaseTimeout() || PlayerLeft() => null,
 };

@@ -43,6 +43,7 @@ import 'helpers.dart';
             actorId: id,
             targetId: rnd.nextInt(5) == 0 ? null : target,
           ),
+          'skipPhase' => SkipPhase(actorId: id, skip: rnd.nextInt(4) != 0),
           _ => const PhaseTimeout(),
         });
       }

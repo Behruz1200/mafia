@@ -176,5 +176,14 @@
   "shopKindPayout": "O‘yin yutug‘i",
   "shopKindHouseFee": "Komissiya",
   "shopKindAdjustment": "Tuzatish",
-  "shopRetry": "Qayta urinish"
+  "shopRetry": "Qayta urinish",
+  "gameSkipTimer": "Taymerni o‘tkazish",
+  "gameSkipTimerCount": "Taymerni o‘tkazish · {count}/{total}",
+  "gameSkipAgreed": "Siz o‘tkazishga rozisiz · {count}/{total}",
+  "gameSkipHint": "Taymer faqat hamma «O‘tkazish»ni bossa, oldinroq tugaydi.",
+  "gameSkipUndo": "Bekor qilish",
+  "gameEventPhaseSkipped": "Hamma taymerni o‘tkazishga rozi bo‘ldi",
+  "languageTitle": "Til",
+  "refresh": "Yangilash",
+  "refreshDone": "Yangilandi"
 }

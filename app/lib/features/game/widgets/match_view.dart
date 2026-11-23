@@ -9,6 +9,7 @@ import '../ui/game_text.dart';
 import 'phase_header.dart';
 import 'player_table.dart';
 import 'role_card.dart';
+import 'skip_timer_bar.dart';
 
 /// The table during a match: night, day and voting.
 ///
@@ -24,6 +25,7 @@ class MatchView extends StatefulWidget {
     required this.private,
     required this.onNightAction,
     required this.onVote,
+    this.onSkipTimer,
   });
 
   final RoomId roomId;
@@ -32,6 +34,9 @@ class MatchView extends StatefulWidget {
   final PrivatePlayerState? private;
   final Future<void> Function(String type, UserId target) onNightAction;
   final Future<void> Function(UserId? target) onVote;
+
+  /// Agree or stop agreeing to end the day's timer early.
+  final Future<void> Function(bool skip)? onSkipTimer;
 
   @override
   State<MatchView> createState() => _MatchViewState();
@@ -124,6 +129,9 @@ class _MatchViewState extends State<MatchView> {
     final events = [for (final e in s.log.reversed) ?t.eventText(e, _name)];
 
     final sleeping = isNight && action == null && _meAlive;
+    final canSkip =
+        widget.onSkipTimer != null &&
+        (widget.private?.allowedActions ?? const []).contains('skipPhase');
 
     return Column(
       children: [
@@ -188,7 +196,13 @@ class _MatchViewState extends State<MatchView> {
         ),
         _BottomBar(
           action: action == null
-              ? null
+              ? (canSkip
+                    ? SkipTimerBar(
+                        state: s,
+                        me: widget.me,
+                        onSkip: widget.onSkipTimer!,
+                      )
+                    : null)
               : _ActionBar(
                   confirmText: _selected == null
                       ? t.gameConfirm
