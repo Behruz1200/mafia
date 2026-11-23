@@ -18,6 +18,8 @@ class AuthConfig {
     this.testPhones = const {},
     this.accessTtl = const Duration(minutes: 15),
     this.refreshTtl = const Duration(days: 60),
+    this.guestSignIn = false,
+    this.guestsPerHour = 30,
   });
 
   final String jwtSecret;
@@ -44,6 +46,14 @@ class AuthConfig {
   final Map<String, String> testPhones;
   final Duration accessTtl;
   final Duration refreshTtl;
+
+  /// `GUEST_SIGN_IN=true`: anyone can get a new player with one tap, no
+  /// phone (live tests with friends). Each guest gets the welcome coins, so
+  /// switch it off before real launch. Off by default.
+  final bool guestSignIn;
+
+  /// `GUEST_PER_HOUR`: at most this many new guests per hour, server-wide.
+  final int guestsPerHour;
 
   factory AuthConfig.fromEnvironment([Map<String, String>? env]) {
     final e = env ?? Platform.environment;
@@ -76,6 +86,8 @@ class AuthConfig {
           if (pair.contains('='))
             pair.split('=').first.trim(): pair.split('=').last.trim(),
       },
+      guestSignIn: e['GUEST_SIGN_IN'] == 'true',
+      guestsPerHour: int.tryParse(e['GUEST_PER_HOUR'] ?? '') ?? 30,
     );
   }
 }

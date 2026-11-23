@@ -13,6 +13,8 @@ String authErrorText(AppLocalizations t, Object error) {
     'code_expired' => t.authErrorCodeExpired,
     'too_many_attempts' => t.authErrorTooManyAttempts,
     'sms_failed' => t.authErrorSms,
+    'guest_disabled' => t.authErrorGuestOff,
+    'too_many_guests' => t.authErrorTooManyGuests,
     'invalid_name' => t.authErrorName,
     'invalid_birth_date' || 'birth_date_already_set' => t.authErrorBirthDate,
     ApiException.network => t.authErrorNetwork,

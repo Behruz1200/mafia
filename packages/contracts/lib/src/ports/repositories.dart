@@ -20,6 +20,10 @@ abstract interface class AuthRepository {
   Future<void> startPhoneSignIn(String phoneE164);
   Future<AuthSession> verifyPhoneCode(String phoneE164, String code);
   Future<AuthSession> signInWithApple();
+
+  /// A new player with no phone or Apple ID, for live tests. The server
+  /// refuses it unless guest sign-in is switched on (`GUEST_SIGN_IN`).
+  Future<AuthSession> signInAsGuest();
   Future<void> signOut();
 
   /// Apple requires in-app account deletion.

@@ -177,6 +177,32 @@ class AuthService {
     return _newSession(user.id, now);
   }
 
+  // ---- Guest (live tests only) ------------------------------------------
+
+  final _guestTimes = <DateTime>[];
+
+  /// A new player without phone or Apple ID, only while `GUEST_SIGN_IN` is
+  /// on. Guests count as being in the first launch country, like a phone
+  /// player from there, so coin games can be tested too.
+  Future<AuthSession> signInAsGuest() async {
+    if (!config.guestSignIn) throw AuthError.guestDisabled;
+    final now = _utcNow;
+    _guestTimes.removeWhere(
+      (t) => now.difference(t) >= const Duration(hours: 1),
+    );
+    if (_guestTimes.length >= config.guestsPerHour) {
+      throw AuthError.tooManyGuests;
+    }
+    _guestTimes.add(now);
+    final launch = config.regions.launchCountries;
+    final user = await store.createUser(
+      displayName: _defaultName(),
+      locale: 'uz',
+      countryCode: launch.isEmpty ? null : (launch.toList()..sort()).first,
+    );
+    return _newSession(user.id, now);
+  }
+
   // ---- Sessions ---------------------------------------------------------
 
   Future<AuthSession> _newSession(UserId userId, DateTime now) async {

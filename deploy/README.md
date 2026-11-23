@@ -77,7 +77,13 @@ in the phone app. Browsers only allow camera and microphone on https.
    own server instead of Google's CDN.
 
        flutter build web --release --no-web-resources-cdn \
-         --dart-define=USE_FAKES=false
+         --dart-define=USE_FAKES=false --dart-define=GUEST_SIGN_IN=true
+
+   `GUEST_SIGN_IN=true` shows "Play as guest" on the sign-in page; it only
+   works while the server also has `GUEST_SIGN_IN=true` in server.env. Every
+   guest is a new player with the welcome coins, so turn both off before real
+   players and real money (build without the define, set the server to
+   false, restart mafia-server).
 
 3. Copy `app/build/web/` to `/opt/mafia/web/` (owner root, readable by
    nginx), then `nginx -t` and `systemctl reload nginx` with the updated

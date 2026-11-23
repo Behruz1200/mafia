@@ -25,6 +25,8 @@ class AuthError implements Exception {
   static const invalidBirthDate = AuthError(400, 'invalid_birth_date');
   static const birthDateAlreadySet = AuthError(409, 'birth_date_already_set');
   static const badRequest = AuthError(400, 'bad_request');
+  static const guestDisabled = AuthError(403, 'guest_disabled');
+  static const tooManyGuests = AuthError(429, 'too_many_guests');
 
   @override
   String toString() =>

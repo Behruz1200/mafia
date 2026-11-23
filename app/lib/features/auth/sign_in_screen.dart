@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../core/config.dart';
 import '../../core/providers.dart';
 import '../../core/routes.dart';
 import '../../core/theme.dart';
@@ -22,10 +23,13 @@ enum _Step { phone, code, setup }
 /// then, the first time, a short "about you" step: name and date of birth
 /// for the 18+ age gate.
 class SignInScreen extends ConsumerStatefulWidget {
-  const SignInScreen({super.key, this.showApple});
+  const SignInScreen({super.key, this.showApple, this.showGuest});
 
   /// Defaults to iOS only. Tests set it.
   final bool? showApple;
+
+  /// "Play as guest": defaults to the GUEST_SIGN_IN build setting.
+  final bool? showGuest;
 
   @override
   ConsumerState<SignInScreen> createState() => _SignInScreenState();
@@ -107,6 +111,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     await _afterSignIn();
   });
 
+  Future<void> _guest() => _run(() async {
+    await ref.read(authRepositoryProvider).signInAsGuest();
+    await _afterSignIn();
+  });
+
   /// New players (no birth date yet) see the setup step; others go in.
   Future<void> _afterSignIn() async {
     final profile = await ref
@@ -152,6 +161,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     final showApple =
         widget.showApple ??
         (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS);
+    final showGuest = widget.showGuest ?? AppConfig.guestSignIn;
 
     final status = [
       if (_error != null)
@@ -181,7 +191,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 440),
                       child: _step == _Step.phone
-                          ? _phoneLayout(t, showApple, status)
+                          ? _phoneLayout(t, showApple, showGuest, status)
                           : Padding(
                               padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                               child: Column(
@@ -209,7 +219,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   /// The first screen: a hand of role cards, the logo, and a panel at the
   /// bottom with the phone number and Apple.
-  Widget _phoneLayout(AppLocalizations t, bool showApple, List<Widget> status) {
+  Widget _phoneLayout(
+    AppLocalizations t,
+    bool showApple,
+    bool showGuest,
+    List<Widget> status,
+  ) {
     final digits = _phone.text.replaceAll(RegExp(r'\D'), '');
     // The cards get whatever height the logo and the panel leave, and are
     // left out on short screens so the buttons stay in view.
@@ -326,7 +341,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   child: Text(t.authSendCode),
                 ),
               ),
-              if (showApple) ...[
+              if (showApple || showGuest) ...[
                 Row(
                   spacing: 12,
                   children: [
@@ -341,6 +356,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     const Expanded(child: Divider()),
                   ],
                 ),
+              ],
+              if (showApple) ...[
                 // Apple's own look: a white button with a black logo.
                 FilledButton.icon(
                   key: const Key('appleSignIn'),
@@ -354,6 +371,18 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   label: Text(t.signInWithApple),
                 ),
               ],
+              if (showGuest)
+                OutlinedButton.icon(
+                  key: const Key('guestSignIn'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Palette.text,
+                    side: const BorderSide(color: Palette.outline),
+                    minimumSize: const Size.fromHeight(56),
+                  ),
+                  icon: const Icon(Icons.bolt_rounded, color: Palette.gold),
+                  onPressed: _busy ? null : _guest,
+                  label: Text(t.authPlayAsGuest),
+                ),
               ...status,
             ],
           ),

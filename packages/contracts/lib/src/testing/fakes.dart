@@ -51,6 +51,10 @@ class FakeAuthRepository implements AuthRepository {
       verifyPhoneCode('+998000000000', '0000');
 
   @override
+  Future<AuthSession> signInAsGuest() =>
+      verifyPhoneCode('+998000000000', '0000');
+
+  @override
   Future<void> signOut() async => _set(null);
 
   @override

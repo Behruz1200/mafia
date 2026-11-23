@@ -145,6 +145,14 @@ class HttpAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<AuthSession> signInAsGuest() async {
+    final j = await api.send('POST', ApiRoutes.authGuest);
+    final s = AuthSession.fromJson(j!);
+    await _set(s);
+    return s;
+  }
+
+  @override
   Future<void> signOut() async {
     final s = _session;
     await _set(null);
