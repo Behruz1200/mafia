@@ -13,7 +13,7 @@ void main() {
     );
   });
 
-  test('each guest is a new player from the launch country', () async {
+  test('each guest is a new adult player from the launch country', () async {
     final h = Harness(guestSignIn: true);
     final a = await h.service.signInAsGuest();
     final b = await h.service.signInAsGuest();
@@ -22,7 +22,8 @@ void main() {
 
     final me = await h.service.me(a.userId);
     expect(me.countryCode, 'UZ');
-    expect(me.hasBirthDate, isFalse);
+    expect(me.hasBirthDate, isTrue);
+    expect(me.isAdult, isTrue);
     expect(me.displayName, startsWith('O‘yinchi '));
   });
 

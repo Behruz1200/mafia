@@ -27,6 +27,8 @@ void main() {
         displayName: 'O‘yinchi 1234',
         countryCode: 'UZ',
         createdAt: fixtureNow,
+        hasBirthDate: true,
+        isAdult: true,
       ),
     );
     await tester.pumpWidget(
@@ -52,7 +54,7 @@ void main() {
     expect(find.byKey(const Key('guestSignIn')), findsNothing);
   });
 
-  testWidgets('one tap signs in a new guest and asks about them', (
+  testWidgets('one tap signs in a new guest, who picks only a name', (
     tester,
   ) async {
     final auth = await pump(tester, guest: true);
@@ -61,5 +63,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(auth.guests, 1);
     expect(find.byKey(const Key('nameField')), findsOneWidget);
+    expect(find.byKey(const Key('birthDateButton')), findsNothing);
+    final go = tester.widget<FilledButton>(
+      find.byKey(const Key('finishSetup')),
+    );
+    expect(go.onPressed, isNotNull);
   });
 }

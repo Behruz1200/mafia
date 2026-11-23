@@ -181,9 +181,14 @@ class AuthService {
 
   final _guestTimes = <DateTime>[];
 
+  /// Any date that makes a guest an adult everywhere.
+  static final _guestBirthDate = DateTime.utc(2000);
+
   /// A new player without phone or Apple ID, only while `GUEST_SIGN_IN` is
-  /// on. Guests count as being in the first launch country, like a phone
-  /// player from there, so coin games can be tested too.
+  /// on. Guests count as adults in the first launch country, like a phone
+  /// player from there, so they can join coin games with everyone else
+  /// (the app asks them only for a name). Test use only: switch it off
+  /// before launch.
   Future<AuthSession> signInAsGuest() async {
     if (!config.guestSignIn) throw AuthError.guestDisabled;
     final now = _utcNow;
@@ -200,6 +205,7 @@ class AuthService {
       locale: 'uz',
       countryCode: launch.isEmpty ? null : (launch.toList()..sort()).first,
     );
+    await store.updateUser(user.id, birthDate: _guestBirthDate);
     return _newSession(user.id, now);
   }
 
