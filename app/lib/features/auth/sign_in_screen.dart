@@ -46,6 +46,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _code = TextEditingController();
   final _name = TextEditingController();
   DateTime? _birthDate;
+
+  /// The setup step asks for a date of birth only when the account has
+  /// none yet. Guests come with one from the server, so they see only
+  /// the name field.
+  var _askBirthDate = true;
   Timer? _resendTimer;
   var _resendIn = 0;
 
@@ -113,20 +118,24 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   Future<void> _guest() => _run(() async {
     await ref.read(authRepositoryProvider).signInAsGuest();
-    await _afterSignIn();
+    await _afterSignIn(guest: true);
   });
 
   /// New players (no birth date yet) see the setup step; others go in.
-  Future<void> _afterSignIn() async {
+  /// A guest always gets to pick a name, and nothing else.
+  Future<void> _afterSignIn({bool guest = false}) async {
     final profile = await ref
         .read(profileRepositoryProvider)
         .watchMyProfile()
         .firstWhere((p) => p != null)
         .timeout(const Duration(seconds: 15), onTimeout: () => null);
     if (!mounted) return;
-    if (profile != null && !profile.hasBirthDate) {
+    if (profile != null && (guest || !profile.hasBirthDate)) {
       _name.text = profile.displayName;
-      setState(() => _step = _Step.setup);
+      setState(() {
+        _askBirthDate = !profile.hasBirthDate;
+        _step = _Step.setup;
+      });
     } else {
       context.go(Routes.lobby);
     }
@@ -136,7 +145,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     final repo = ref.read(profileRepositoryProvider);
     final current = await repo.watchMyProfile().firstWhere((p) => p != null);
     await repo.updateMyProfile(current!.copyWith(displayName: _name.text));
-    await repo.setBirthDate(_birthDate!);
+    if (_askBirthDate) await repo.setBirthDate(_birthDate!);
     if (mounted) context.go(Routes.lobby);
   });
 
@@ -500,30 +509,34 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         decoration: InputDecoration(labelText: t.authNameLabel),
         onChanged: (_) => setState(() {}),
       ),
-      OutlinedButton.icon(
-        key: const Key('birthDateButton'),
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(56),
-          alignment: Alignment.centerLeft,
+      if (_askBirthDate) ...[
+        OutlinedButton.icon(
+          key: const Key('birthDateButton'),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(56),
+            alignment: Alignment.centerLeft,
+          ),
+          icon: const Icon(Icons.cake_rounded, color: Palette.gold),
+          onPressed: _busy
+              ? null
+              : () async {
+                  final d = await pickBirthDate(context, initial: _birthDate);
+                  if (d != null) setState(() => _birthDate = d);
+                },
+          label: Text(
+            _birthDate == null
+                ? '${t.authBirthDateLabel}: ${t.authPickDate}'
+                : '${t.authBirthDateLabel}: ${formatDate(_birthDate!)}',
+          ),
         ),
-        icon: const Icon(Icons.cake_rounded, color: Palette.gold),
-        onPressed: _busy
-            ? null
-            : () async {
-                final d = await pickBirthDate(context, initial: _birthDate);
-                if (d != null) setState(() => _birthDate = d);
-              },
-        label: Text(
-          _birthDate == null
-              ? '${t.authBirthDateLabel}: ${t.authPickDate}'
-              : '${t.authBirthDateLabel}: ${formatDate(_birthDate!)}',
-        ),
-      ),
-      Text(t.authBirthDateHint, style: Theme.of(context).textTheme.bodySmall),
+        Text(t.authBirthDateHint, style: Theme.of(context).textTheme.bodySmall),
+      ],
       FilledButton(
         key: const Key('finishSetup'),
         style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-        onPressed: nameOk && _birthDate != null && !_busy ? _finishSetup : null,
+        onPressed: nameOk && (_birthDate != null || !_askBirthDate) && !_busy
+            ? _finishSetup
+            : null,
         child: Text(t.authContinue),
       ),
     ];
