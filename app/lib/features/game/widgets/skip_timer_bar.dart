@@ -6,9 +6,10 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../ui/game_style.dart';
 
 /// "Skip timer" during the day's talk (and the role reveal). Each living
-/// player taps it; the server ends the timer only once all of them have,
-/// so one player can never skip for everyone. Shows how many agreed and
-/// lets the player take theirs back.
+/// player taps it; the server ends the timer once enough of them have
+/// (`SkipPhase.needed`, two thirds), so one player can never skip for
+/// everyone. Shows how many agreed out of how many are needed, and lets
+/// the player take theirs back.
 class SkipTimerBar extends StatefulWidget {
   const SkipTimerBar({
     super.key,
@@ -51,7 +52,7 @@ class _SkipTimerBarState extends State<SkipTimerBar> {
     final t = AppLocalizations.of(context);
     final alive = {for (final p in widget.state.alive) p.userId};
     final agreed = widget.state.skipVotes.where(alive.contains).length;
-    final total = alive.length;
+    final total = SkipPhase.needed(alive.length);
     final mine = widget.state.skipVotes.contains(widget.me);
     final progress = total == 0 ? 0.0 : agreed / total;
 

@@ -294,14 +294,16 @@ void main() {
       expect(t.phase, GamePhase.day);
     });
 
-    test('the day ends early only once every living player agrees', () {
+    test('the day ends early once two thirds of the living agree', () {
       final everyone = alive();
-      for (final id in everyone.take(everyone.length - 1)) {
+      final needed = SkipPhase.needed(everyone.length);
+      expect(needed, lessThan(everyone.length));
+      for (final id in everyone.take(needed - 1)) {
         t.act(SkipPhase(actorId: id));
         expect(t.phase, GamePhase.day);
       }
-      expect(t.state.public.skipVotes, hasLength(everyone.length - 1));
-      t.act(SkipPhase(actorId: everyone.last));
+      expect(t.state.public.skipVotes, hasLength(needed - 1));
+      t.act(SkipPhase(actorId: everyone[needed - 1]));
       expect(t.phase, GamePhase.voting);
       expect(t.state.public.skipVotes, isEmpty);
       expect(t.log.any((e) => e.message == EventKeys.phaseSkipped), isTrue);
@@ -322,18 +324,36 @@ void main() {
     test('dead players cannot skip and are not waited for', () {
       expect(t.reject(SkipPhase(actorId: civilians[0])), RejectCodes.actorDead);
       for (final id in alive()) {
+        if (t.phase != GamePhase.day) break;
         t.act(SkipPhase(actorId: id));
       }
       expect(t.phase, GamePhase.voting);
     });
 
-    test('the last holdout leaving ends the day', () {
+    test('a holdout leaving can tip the count', () {
       final everyone = alive();
-      for (final id in everyone) {
-        if (id != civilians[1]) t.act(SkipPhase(actorId: id));
+      // One short of the share; then a player who did not agree leaves.
+      final agree = everyone
+          .where((id) => id != civilians[1])
+          .take(SkipPhase.needed(everyone.length) - 1);
+      for (final id in agree) {
+        t.act(SkipPhase(actorId: id));
       }
+      expect(t.phase, GamePhase.day);
       t.act(PlayerLeft(userId: civilians[1]));
-      expect(t.phase, GamePhase.voting);
+      expect(
+        t.phase,
+        agree.length >= SkipPhase.needed(everyone.length - 1)
+            ? GamePhase.voting
+            : GamePhase.day,
+      );
+    });
+
+    test('two thirds, rounded up', () {
+      expect(
+        [for (var n = 1; n <= 12; n++) SkipPhase.needed(n)],
+        [1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 8],
+      );
     });
 
     test('night and voting cannot be skipped this way', () {
@@ -349,6 +369,7 @@ void main() {
     test('everyone agreeing starts the night', () {
       final ids = [for (final p in t.state.public.players) p.userId];
       for (final id in ids) {
+        if (t.phase != GamePhase.roleReveal) break;
         t.act(SkipPhase(actorId: id));
       }
       expect(t.phase, GamePhase.night);
