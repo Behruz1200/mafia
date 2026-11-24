@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../core/top_bar_buttons.dart';
 import '../../core/last_room.dart';
 import '../../core/providers.dart';
 import '../../core/routes.dart';
@@ -33,11 +32,28 @@ class LobbyScreen extends ConsumerStatefulWidget {
 
 class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   bool _busy = false;
+  late final AppLifecycleListener _lifecycle;
 
   @override
   void initState() {
     super.initState();
     unawaited(_resume());
+    // Back in front after a while: coins and profile may have changed, so
+    // read them again. Only while home is the screen on top, or it would
+    // open the room a second time over the one already showing.
+    _lifecycle = AppLifecycleListener(
+      onResume: () {
+        if (mounted && ModalRoute.of(context)?.isCurrent != false) {
+          unawaited(_refresh());
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
   }
 
   /// Takes the player back into the room they last had open if they are
@@ -71,10 +87,9 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   }
 
   /// Re-reads coins and profile, and goes back into a running match if
-  /// there is one. From the refresh button or a pull down.
+  /// there is one. On a pull down, and by itself when the app comes back
+  /// to the front.
   Future<void> _refresh() async {
-    final t = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.of(context);
     ref
       ..invalidate(_myProfileProvider)
       ..invalidate(balanceProvider);
@@ -82,17 +97,9 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     try {
       if (wallet is HttpWalletRepository) await wallet.refresh();
     } on Object {
-      // Shown as before; the next refresh tries again.
+      // Shown as before; the wallet polls again on its own.
     }
-    if (await _resume()) return;
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(t.refreshDone),
-          duration: const Duration(seconds: 1),
-        ),
-      );
+    await _resume();
   }
 
   void _go(Room room) =>
@@ -146,7 +153,6 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                   _TopBar(
                     name: profile?.displayName,
                     coins: balance?.available,
-                    onRefresh: _refresh,
                   ),
                   const SizedBox(height: 22),
                   _Tagline(text: t.lobbyTagline, highlight: t.appTitle),
@@ -215,15 +221,10 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
 /// The player's avatar (opens the profile), a greeting and the coins
 /// (open the shop).
 class _TopBar extends StatelessWidget {
-  const _TopBar({this.name, this.coins, required this.onRefresh});
-
-  /// Below this width the coins show as a bare number, so the language
-  /// and refresh buttons still fit.
-  static const _narrow = 370.0;
+  const _TopBar({this.name, this.coins});
 
   final String? name;
   final int? coins;
-  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -262,14 +263,10 @@ class _TopBar extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.end,
             spacing: 6,
             children: [
-              const LanguageButton(compact: true),
-              RefreshButton(onPressed: onRefresh),
               if (coins != null)
                 Flexible(
                   child: CoinChip(
-                    label: MediaQuery.sizeOf(context).width < _narrow
-                        ? '${coins!}'
-                        : t.coins(coins!),
+                    label: t.coins(coins!),
                     onTap: () => context.push(Routes.shop),
                   ),
                 ),
@@ -279,8 +276,7 @@ class _TopBar extends StatelessWidget {
       ],
     );
     if (name == null) return bar;
-    // The greeting gets its own line, so the language and refresh buttons
-    // fit beside the coins on small phones.
+    // The greeting gets its own line under the avatar and coins.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 18,

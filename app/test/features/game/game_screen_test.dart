@@ -298,7 +298,7 @@ void main() {
     expect(find.byKey(const ValueKey('skip-timer')), findsNothing);
   });
 
-  testWidgets('waiting room has camera and mic and a refresh button', (
+  testWidgets('waiting room has camera and mic, and no refresh button', (
     tester,
   ) async {
     final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
@@ -319,9 +319,7 @@ void main() {
     expect(beside.dy, moreOrLessEquals(camera.dy, epsilon: 1));
     expect(camera.dx, lessThan(mic.dx));
     expect(mic.dx, lessThan(beside.dx));
-    await tester.tap(find.byKey(const ValueKey('refresh-button')));
-    await tester.pumpAndSettle();
-    expect(find.text('Refreshed'), findsOneWidget);
+    expect(find.byIcon(Icons.refresh_rounded), findsNothing);
     expect(find.text('K7QF2'), findsOneWidget);
   });
 

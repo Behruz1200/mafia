@@ -208,8 +208,6 @@
   "gameSkipUndo": "Bekor qilish",
   "gameEventPhaseSkipped": "Ko‘pchilik taymerni o‘tkazishga rozi bo‘ldi",
   "languageTitle": "Til",
-  "refresh": "Yangilash",
-  "refreshDone": "Yangilandi",
   "phaseLastWord": "So‘nggi so‘z",
   "gameLastWordYou": "Bu sizning so‘nggi so‘zingiz. Kamerada ayting yoki pastda yozing, keyin «Tayyor»ni bosing.",
   "gameLastWordListen": "{name} so‘nggi so‘zini aytmoqda. Tinglang.",

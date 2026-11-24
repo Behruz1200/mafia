@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../core/providers.dart';
 import '../../core/routes.dart';
+import '../../core/top_bar_buttons.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../auth/auth_error_text.dart';
 import '../auth/widgets.dart';
@@ -123,6 +124,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 const SizedBox(height: 24),
                 _AgeTile(profile: profile, busy: _busy, run: _run),
+                ListTile(
+                  leading: const Icon(Icons.language_rounded),
+                  title: Text(t.languageTitle),
+                ),
+                const LanguagePicker(),
                 const Divider(height: 48),
                 OutlinedButton(
                   key: const Key('signOut'),
