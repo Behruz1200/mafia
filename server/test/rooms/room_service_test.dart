@@ -1,5 +1,6 @@
 import 'package:contracts/contracts.dart';
 import 'package:fake_async/fake_async.dart';
+import 'package:mafia_engine/mafia_engine.dart';
 import 'package:server/rooms/match_recorder.dart';
 import 'package:server/rooms/room_error.dart';
 import 'package:server/rooms/room_service.dart';
@@ -464,6 +465,139 @@ void main() {
         final end = rig.sockets['u2']!.last<MatchEnded>()!.result;
         expect(end.cancelled, isTrue);
         expect(rig.wallet.availableOf('u2'), 500);
+        rig.service.dispose();
+      });
+    });
+  });
+
+  group('roles', () {
+    Object? tryRoles(
+      Rig rig,
+      FakeAsync a,
+      UserId u,
+      Room room,
+      Map<Role, int>? c,
+    ) {
+      Object? err;
+      rig.service
+          .setRoles(u, room.id, c)
+          .then(
+            (_) {},
+            onError: (Object e) {
+              err = e;
+            },
+          );
+      a.flushMicrotasks();
+      return err;
+    }
+
+    test('the host picks roles and everyone sees them', () {
+      fake((a) {
+        final rig = Rig(engine: const MafiaEngine());
+        final room = fill(rig, a, n: 5);
+        expect(
+          tryRoles(rig, a, 'u0', room, {
+            Role.mafia: 1,
+            Role.immortal: 1,
+            Role.civilian: 3,
+          }),
+          isNull,
+        );
+        final seen = rig.sockets['u3']!.last<RoomUpdated>()!.room.settings;
+        expect(seen.roleCounts, {Role.mafia: 1, Role.immortal: 1});
+
+        start(rig, a, room);
+        final dealt = [
+          for (final u in users.take(5))
+            rig.sockets[u]!.last<PrivateStateUpdated>()!.state.role,
+        ];
+        expect(dealt.where((r) => r == Role.immortal), hasLength(1));
+        expect(dealt.where((r) => r == Role.civilian), hasLength(3));
+        rig.service.dispose();
+      });
+    });
+
+    test('back to the standard deal with null', () {
+      fake((a) {
+        final rig = Rig();
+        final room = fill(rig, a);
+        tryRoles(rig, a, 'u0', room, {Role.mafia: 1, Role.bodyguard: 1});
+        expect(tryRoles(rig, a, 'u0', room, null), isNull);
+        expect(rig.service.room(room.id)!.settings.roleCounts, isNull);
+        rig.service.dispose();
+      });
+    });
+
+    test('only the host, only fair setups, never in quick match', () {
+      fake((a) {
+        final rig = Rig();
+        final room = fill(rig, a);
+        expect(
+          tryRoles(rig, a, 'u1', room, {Role.mafia: 1}),
+          roomError('not_host'),
+        );
+        expect(
+          tryRoles(rig, a, 'u0', room, {Role.mafia: 3}),
+          roomError('roles_too_strong'),
+        );
+        expect(
+          tryRoles(rig, a, 'u0', room, {Role.mafia: 1, Role.doctor: 2}),
+          roomError('roles_invalid'),
+        );
+        expect(
+          tryRoles(rig, a, 'u0', room, {Role.maniac: 1}),
+          roomError('roles_no_mafia'),
+        );
+        rig.service.dispose();
+
+        final rig2 = Rig();
+        final pub = fill(
+          rig2,
+          a,
+          settings: staked(0, v: RoomVisibility.public),
+        );
+        expect(
+          tryRoles(rig2, a, 'u0', pub, {Role.mafia: 1}),
+          roomError('roles_locked'),
+        );
+        rig2.service.dispose();
+      });
+    });
+
+    test('Start is refused when the roles are unfair for who is seated', () {
+      fake((a) {
+        final rig = Rig();
+        final room = fill(rig, a);
+        // Fair for a full table of 6, not for the 4 seated.
+        expect(
+          tryRoles(rig, a, 'u0', room, {Role.mafia: 1, Role.maniac: 1}),
+          isNull,
+        );
+        Object? err;
+        rig.service
+            .act('u0', room.id, const StartMatch(actorId: 'u0'))
+            .then(
+              (_) {},
+              onError: (Object e) {
+                err = e;
+              },
+            );
+        a.flushMicrotasks();
+        expect(err, roomError('roles_too_strong'));
+        expect(rig.service.room(room.id)!.status, RoomStatus.open);
+        rig.service.dispose();
+      });
+    });
+
+    test('roles cannot change during a match', () {
+      fake((a) {
+        final rig = Rig();
+        final room = fill(rig, a);
+        start(rig, a, room);
+        expect(
+          tryRoles(rig, a, 'u0', room, {Role.mafia: 1}),
+          roomError('room_in_match'),
+        );
         rig.service.dispose();
       });
     });

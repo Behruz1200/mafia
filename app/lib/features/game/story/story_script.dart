@@ -20,8 +20,21 @@ List<StoryScene> storyScenes(MatchResult result) {
 
   for (final round in rounds) {
     for (final n in story.nights.where((n) => n.round == round)) {
-      final target = n.target;
-      if (target == null) {
+      // The Hypnotist acts first: whoever they put to sleep did nothing.
+      if ((n.hypnotistId, n.slept) case (final h?, final slept?)) {
+        scenes.add(SleepScene(round: round, hypnotist: h, target: slept));
+      }
+      // Older stories only tell the Mafia's shot.
+      final attacks = n.attacks.isNotEmpty || n.target == null
+          ? n.attacks
+          : [
+              StoryAttack(
+                shooters: n.shooters,
+                target: n.target!,
+                outcome: n.saved ? ShotOutcome.healed : ShotOutcome.died,
+              ),
+            ];
+      if (attacks.isEmpty) {
         scenes.add(
           QuietNightScene(
             round: round,
@@ -31,23 +44,27 @@ List<StoryScene> storyScenes(MatchResult result) {
             ],
           ),
         );
-      } else {
+      }
+      for (final a in attacks) {
         // The Don leads, so the Don is the one shown holding the gun.
-        final shooters = [...n.shooters]
+        final shooters = [...a.shooters]
           ..sort(
-            (a, b) => (roles[a] == Role.don ? 0 : 1).compareTo(
-              roles[b] == Role.don ? 0 : 1,
+            (x, y) => (roles[x] == Role.don ? 0 : 1).compareTo(
+              roles[y] == Role.don ? 0 : 1,
             ),
           );
         scenes.add(
           ShotScene(
             round: round,
             shooters: shooters,
-            target: target,
-            doctor: n.saved ? n.doctorId : null,
+            target: a.target,
+            doctor: a.outcome == ShotOutcome.healed ? n.doctorId : null,
+            bodyguard: a.bodyguardId,
+            byManiac: a.byManiac,
+            immortal: a.outcome == ShotOutcome.immortal,
           ),
         );
-        if (!n.saved) alive.remove(target);
+        if (a.outcome == ShotOutcome.died) alive.remove(a.hit);
       }
       // The Detective's check first, then the Don's.
       final checks = [...n.checks]
@@ -96,24 +113,55 @@ sealed class StoryScene {
   Duration get duration;
 }
 
-/// The Mafia shot at [target]. If [doctor] is set, the Doctor saved them.
+/// The Mafia (or the Maniac, [byManiac]) shot at [target]. If [doctor] is
+/// set, the Doctor saved whoever was hit. If [bodyguard] is set, they
+/// stepped in front of [target] and took the shot. [immortal] means the
+/// player hit shrugged it off.
 class ShotScene extends StoryScene {
   const ShotScene({
     required this.round,
     required this.shooters,
     required this.target,
     this.doctor,
+    this.bodyguard,
+    this.byManiac = false,
+    this.immortal = false,
   });
 
   final int round;
   final List<UserId> shooters;
   final UserId target;
   final UserId? doctor;
+  final UserId? bodyguard;
+  final bool byManiac;
+  final bool immortal;
 
   bool get saved => doctor != null;
 
+  /// Who the shot hit.
+  UserId get hit => bodyguard ?? target;
+
+  /// True when the player hit is out of the game.
+  bool get killed => !saved && !immortal;
+
   @override
   Duration get duration => const Duration(milliseconds: 5200);
+}
+
+/// The Hypnotist put [target] to sleep for the night.
+class SleepScene extends StoryScene {
+  const SleepScene({
+    required this.round,
+    required this.hypnotist,
+    required this.target,
+  });
+
+  final int round;
+  final UserId hypnotist;
+  final UserId target;
+
+  @override
+  Duration get duration => const Duration(milliseconds: 4200);
 }
 
 /// The Mafia picked no one.

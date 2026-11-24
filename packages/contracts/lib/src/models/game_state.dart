@@ -138,12 +138,17 @@ class PrivatePlayerState {
     this.checks = const {},
     this.detectiveChecks = const {},
     this.allowedActions = const [],
+    this.wasAsleep = false,
   });
 
   final UserId userId;
   final Role role;
 
-  /// Other Mafia members, for Mafia and Don only. Empty for the town.
+  /// True from the morning after the Hypnotist put this player to sleep
+  /// until the next night: their power did nothing last night.
+  final bool wasAsleep;
+
+  /// Other Mafia members, for Mafia and Don only. Empty for everyone else.
   final List<UserId> teammates;
 
   /// Results of this player's night checks (Detective, Don).
@@ -164,6 +169,7 @@ class PrivatePlayerState {
     'checks': checks.map((k, v) => MapEntry(k, v.name)),
     'detectiveChecks': detectiveChecks,
     'allowedActions': allowedActions,
+    'wasAsleep': wasAsleep,
   };
 
   factory PrivatePlayerState.fromJson(Json j) => PrivatePlayerState(
@@ -177,6 +183,7 @@ class PrivatePlayerState {
       (k, v) => MapEntry(k, v! as bool),
     ),
     allowedActions: decodeStrings(j['allowedActions']),
+    wasAsleep: j['wasAsleep'] as bool? ?? false,
   );
 }
 

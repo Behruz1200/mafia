@@ -7,6 +7,7 @@ import '../models/game_action.dart';
 import '../models/game_state.dart';
 import '../models/ids.dart';
 import '../models/match_result.dart';
+import '../models/role.dart';
 import '../models/room.dart';
 import '../models/wallet.dart';
 import '../ports/repositories.dart';
@@ -199,6 +200,32 @@ class FakeRoomRepository implements RoomRepository {
         emoji: emoji,
         channel: ChatChannel.table,
         sentAt: DateTime.now().toUtc(),
+      ),
+    );
+  }
+
+  /// Applies the roles at once, like the server does for a fair setup.
+  @override
+  Future<void> setRoles(RoomId roomId, Map<Role, int>? roleCounts) async {
+    final s = room.settings;
+    emitRoom(
+      Room(
+        id: room.id,
+        inviteCode: room.inviteCode,
+        hostId: room.hostId,
+        status: room.status,
+        settings: RoomSettings(
+          minPlayers: s.minPlayers,
+          maxPlayers: s.maxPlayers,
+          stake: s.stake,
+          visibility: s.visibility,
+          roleCounts: roleCounts,
+          durations: s.durations,
+        ),
+        memberIds: room.memberIds,
+        memberNames: room.memberNames,
+        currentMatchId: room.currentMatchId,
+        createdAt: room.createdAt,
       ),
     );
   }

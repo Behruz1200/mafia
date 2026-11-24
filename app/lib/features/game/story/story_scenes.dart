@@ -39,13 +39,29 @@ typedef Caption = ({double at, String text});
   ShotScene(:final round, :final target, :final doctor) => (
     label: t.storyNight(round),
     captions: [
-      (at: 0.25, text: t.storyShotAt(c.name(target))),
       (
-        at: 2.1,
+        at: 0.25,
+        text: scene.byManiac
+            ? t.storyManiacShotAt(c.name(target))
+            : t.storyShotAt(c.name(target)),
+      ),
+      if (scene.bodyguard case final bodyguard?)
+        (at: 1.9, text: t.storyGuarded(c.name(bodyguard))),
+      (
+        at: scene.bodyguard == null ? 2.1 : 3.3,
         text: doctor != null
             ? t.storySaved(c.name(doctor))
-            : t.storyKilled(c.name(target)),
+            : scene.immortal
+            ? t.storyImmortal(c.name(scene.hit))
+            : t.storyKilled(c.name(scene.hit)),
       ),
+    ],
+  ),
+  SleepScene(:final round, :final hypnotist, :final target) => (
+    label: t.storyNight(round),
+    captions: [
+      (at: 0.25, text: t.storySlept(c.name(hypnotist), c.name(target))),
+      (at: 2.2, text: t.storySleptLine),
     ],
   ),
   QuietNightScene(:final round) => (
@@ -86,7 +102,11 @@ typedef Caption = ({double at, String text});
     captions: [
       (
         at: 0.3,
-        text: winner == Team.town ? t.storyTownWinsLine : t.storyMafiaWinsLine,
+        text: switch (winner) {
+          Team.town => t.storyTownWinsLine,
+          Team.mafia => t.storyMafiaWinsLine,
+          Team.maniac => t.storyManiacWinsLine,
+        },
       ),
     ],
   ),
@@ -111,6 +131,7 @@ class SceneStage extends StatelessWidget {
     final b = _Scene(cast, t, l);
     final children = switch (scene) {
       final ShotScene s => b.shot(s),
+      final SleepScene s => b.sleep(s),
       final QuietNightScene s => b.quiet(s),
       final CheckScene s => b.check(s),
       final VoteScene s => b.vote(s),
@@ -267,11 +288,18 @@ class _Scene {
   List<Widget> shot(ShotScene s) {
     final shooter = s.shooters.isNotEmpty ? s.shooters.first : null;
     const muzzleY = _gy - _k * 58;
-    final killed = !s.saved;
+    final guard = s.bodyguard;
+    final killed = s.killed;
     final fall = killed ? p(1.85, 0.4, Curves.easeOut) : 0.0;
-    final bulletEnd = s.saved ? 172.0 : 276.0;
-    final bulletDur = s.saved ? 0.3 : 0.4;
+    // The bullet stops at the shield, the Bodyguard, or the target.
+    final bulletEnd = s.saved || s.immortal
+        ? 172.0
+        : guard != null
+        ? 214.0
+        : 276.0;
+    final bulletDur = s.saved || s.immortal ? 0.3 : 0.4;
     final bullet = p(1.45, bulletDur);
+    final ghostX = guard != null ? 238.0 : 318.0;
     return [
       const ComicBackdrop(Backdrop.night),
       figure(
@@ -279,11 +307,25 @@ class _Scene {
         310,
         left: true,
         face: ComicFace.scared,
-        shift: slideIn(0.1, fromRight: true) + Offset(shake(1.45, 0.9), 0),
-        angle: fall * 0.35,
-        opacity: 1 - fall * 0.45,
-        grey: killed && t > 1.9,
+        shift:
+            slideIn(0.1, fromRight: true) +
+            Offset(guard == null ? shake(1.45, 0.9) : 0, 0),
+        angle: guard == null ? fall * 0.35 : 0,
+        opacity: guard == null ? 1 - fall * 0.45 : 1,
+        grey: guard == null && killed && t > 1.9,
       ),
+      if (guard != null)
+        figure(
+          guard,
+          230,
+          left: true,
+          face: ComicFace.scared,
+          arm: armUp - 0.4,
+          shift: dropIn(0.9) + Offset(shake(1.85, 0.6), 0),
+          angle: fall * 0.35,
+          opacity: 1 - fall * 0.45,
+          grey: killed && t > 1.9,
+        ),
       if (shooter != null)
         figure(
           shooter,
@@ -293,7 +335,7 @@ class _Scene {
           tool: ArmTool.gun,
           shift: slideIn(0.2),
         ),
-      if (s.doctor case final doctor?)
+      if (s.doctor case final doctor? when guard == null)
         figure(
           doctor,
           244,
@@ -302,7 +344,8 @@ class _Scene {
           tool: ArmTool.point,
           shift: dropIn(1.15),
         ),
-      if (s.saved) popAt(200, muzzleY, 1.55, const ComicShield(), dur: 0.3),
+      if (s.saved || s.immortal)
+        popAt(200, muzzleY, 1.55, const ComicShield(), dur: 0.3),
       if (t >= 1.45 && bullet < 1)
         Positioned(
           left: lerp(140, bulletEnd, bullet),
@@ -320,14 +363,72 @@ class _Scene {
       popAt(150, muzzleY - 48, 1.38, ComicBurst(l.storyBang), dur: 0.35),
       if (s.saved)
         popAt(250, 110, 2.15, ComicWord(l.storySavedWord, color: Palette.cyan)),
+      if (s.immortal)
+        popAt(
+          250,
+          110,
+          2.15,
+          ComicWord(
+            l.roleName(Role.immortal).toUpperCase(),
+            color: Palette.gold,
+          ),
+        ),
       if (killed && t > 2.3)
         at(
-          318,
+          ghostX,
           _gy - 150 - 60 * p(2.3, 1.6, Curves.easeOut),
           Opacity(
             opacity: (1 - p(3.2, 0.7)) * p(2.3, 0.3),
             child: const ComicGhost(),
           ),
+        ),
+    ];
+  }
+
+  List<Widget> sleep(SleepScene s) {
+    final drowsy = p(1.4, 0.8, Curves.easeOut);
+    return [
+      const ComicBackdrop(Backdrop.night),
+      figure(
+        s.hypnotist,
+        80,
+        face: ComicFace.smirk,
+        arm: raise(0.8),
+        tool: ArmTool.point,
+        shift: slideIn(0.2),
+      ),
+      // Rings drift from the Hypnotist's hand to the target.
+      for (var i = 0; i < 3; i++)
+        if (t > 0.9 + i * 0.25)
+          at(
+            lerp(150, 270, p(0.9 + i * 0.25, 0.9)),
+            _gy - _k * 70,
+            Opacity(
+              opacity: 1 - p(1.6 + i * 0.25, 0.3),
+              child: Container(
+                width: 26.0 + i * 6,
+                height: 26.0 + i * 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Palette.lavender, width: 4),
+                ),
+              ),
+            ),
+          ),
+      figure(
+        s.target,
+        290,
+        left: true,
+        face: t > 1.6 ? ComicFace.smile : ComicFace.scared,
+        shift: slideIn(0.1, fromRight: true),
+        angle: drowsy * 0.18,
+      ),
+      for (var i = 0; i < 3; i++)
+        popAt(
+          300 + i * 16.0,
+          110 - i * 26.0,
+          1.9 + i * 0.3,
+          ComicWord('Z', color: Palette.lavender, size: 26.0 + i * 8),
         ),
     ];
   }
@@ -558,7 +659,11 @@ class _Scene {
         56,
         0.35,
         ComicWord(
-          (town ? l.gameResultTownWins : l.gameResultMafiaWins).toUpperCase(),
+          switch (s.winner) {
+            Team.town => l.gameResultTownWins,
+            Team.mafia => l.gameResultMafiaWins,
+            Team.maniac => l.gameResultManiacWins,
+          }.toUpperCase(),
           color: Comic.yellow,
           size: 38,
         ),

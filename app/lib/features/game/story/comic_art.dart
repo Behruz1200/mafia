@@ -20,6 +20,9 @@ abstract final class Comic {
   static const steel = Color(0xFF2A2A33);
   static const red = Palette.accent;
 
+  /// The Maniac's orange.
+  static const maniac = Color(0xFFFF8A3D);
+
   static const stageWidth = 360.0;
   static const stageHeight = 400.0;
 
@@ -96,6 +99,26 @@ class RoleLook {
       Color(0xFFA996FF),
       Color(0xFF6F5BD9),
       Palette.lavender,
+    ),
+    Role.maniac => const RoleLook(
+      Color(0xFF4A3B33),
+      Comic.maniac,
+      Comic.maniac,
+    ),
+    Role.bodyguard => const RoleLook(
+      Color(0xFF26304A),
+      Color(0xFF141A2C),
+      Palette.cyan,
+    ),
+    Role.hypnotist => const RoleLook(
+      Color(0xFF7A4FD6),
+      Color(0xFF2A1450),
+      Palette.lavender,
+    ),
+    Role.immortal => const RoleLook(
+      Color(0xFFFFF1C7),
+      Palette.gold,
+      Palette.gold,
     ),
   };
 }
@@ -180,6 +203,25 @@ class _FigurePainter extends CustomPainter {
     if (role == Role.doctor) {
       Comic.inked(canvas, _cross(0, -48, 4, 10), Comic.red, 2);
     }
+    if (role == Role.maniac) {
+      // A torn, stitched shirt.
+      canvas
+        ..drawLine(
+          const Offset(-10, -62),
+          const Offset(8, -40),
+          Comic.stroke(3),
+        )
+        ..drawLine(const Offset(-6, -56), const Offset(0, -58), Comic.stroke(2))
+        ..drawLine(const Offset(0, -48), const Offset(6, -50), Comic.stroke(2));
+    }
+    if (role == Role.bodyguard) {
+      Comic.inked(canvas, _shield(0, -48, 9), Palette.cyan, 2);
+    }
+    if (role == Role.hypnotist) {
+      canvas
+        ..drawCircle(const Offset(0, -46), 9, Comic.stroke(2.5))
+        ..drawCircle(const Offset(0, -46), 4, Comic.stroke(2.5));
+    }
     if (role == Role.detective) {
       canvas
         ..drawLine(
@@ -214,6 +256,28 @@ class _FigurePainter extends CustomPainter {
       canvas
         ..drawCircle(const Offset(-6, -94), 2.6, Comic.fill(Comic.ink))
         ..drawCircle(const Offset(8, -94), 2.6, Comic.fill(Comic.ink));
+    }
+    if (role == Role.bodyguard) {
+      canvas
+        ..drawRRect(
+          RRect.fromLTRBR(-16, -99, -1, -90, const Radius.circular(3)),
+          Comic.fill(Comic.ink),
+        )
+        ..drawRRect(
+          RRect.fromLTRBR(2, -99, 17, -90, const Radius.circular(3)),
+          Comic.fill(Comic.ink),
+        )
+        ..drawLine(
+          const Offset(-1, -96),
+          const Offset(2, -96),
+          Comic.stroke(2),
+        );
+    }
+    if (role == Role.hypnotist) {
+      // Spiral eyes.
+      for (final x in const [-6.0, 8.0]) {
+        canvas.drawCircle(Offset(x, -94), 4.5, Comic.stroke(1.6));
+      }
     }
     switch (face) {
       case ComicFace.scared:
@@ -335,6 +399,77 @@ class _FigurePainter extends CustomPainter {
           Comic.paper,
         );
         canvas.drawPath(_cross(0, -116, 2, 6), Comic.fill(Comic.red));
+      case Role.maniac:
+        // A knitted beanie, pulled low.
+        Comic.inked(
+          canvas,
+          Path()
+            ..moveTo(-20, -98)
+            ..quadraticBezierTo(-20, -126, 0, -126)
+            ..quadraticBezierTo(20, -126, 20, -98)
+            ..close(),
+          look.hat,
+        );
+        canvas.drawLine(
+          const Offset(-19, -103),
+          const Offset(19, -103),
+          Comic.stroke(3),
+        );
+        canvas.drawCircle(const Offset(0, -128), 5, Comic.fill(look.hat));
+        canvas.drawCircle(const Offset(0, -128), 5, Comic.stroke(2.5));
+      case Role.bodyguard:
+        // A short flat-top haircut.
+        Comic.inked(
+          canvas,
+          Path()..addRRect(
+            RRect.fromLTRBR(-17, -114, 17, -102, const Radius.circular(4)),
+          ),
+          look.hat,
+        );
+      case Role.hypnotist:
+        // A tall top hat with a lavender band.
+        Comic.inked(
+          canvas,
+          Path()..addRect(const Rect.fromLTRB(-13, -136, 13, -106)),
+          look.hat,
+        );
+        canvas.drawRect(
+          const Rect.fromLTWH(-13, -114, 26, 5),
+          Comic.fill(look.accent),
+        );
+        Comic.inked(
+          canvas,
+          Path()..addOval(
+            Rect.fromCenter(
+              center: const Offset(0, -106),
+              width: 46,
+              height: 9,
+            ),
+          ),
+          look.hat,
+        );
+      case Role.immortal:
+        // A golden halo.
+        canvas
+          ..drawOval(
+            Rect.fromCenter(
+              center: const Offset(0, -122),
+              width: 36,
+              height: 10,
+            ),
+            Comic.stroke(7),
+          )
+          ..drawOval(
+            Rect.fromCenter(
+              center: const Offset(0, -122),
+              width: 36,
+              height: 10,
+            ),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 4
+              ..color = look.accent,
+          );
       case Role.civilian:
         Comic.inked(
           canvas,
@@ -349,6 +484,15 @@ class _FigurePainter extends CustomPainter {
         );
     }
   }
+
+  /// A shield badge centred on (cx, cy), [r] wide on each side.
+  static Path _shield(double cx, double cy, double r) => Path()
+    ..moveTo(cx - r, cy - r)
+    ..lineTo(cx + r, cy - r)
+    ..lineTo(cx + r, cy)
+    ..quadraticBezierTo(cx + r, cy + r, cx, cy + r * 1.4)
+    ..quadraticBezierTo(cx - r, cy + r, cx - r, cy)
+    ..close();
 
   /// A plus sign centred on (cx, cy): arms [half] wide, [reach] long.
   static Path _cross(double cx, double cy, double half, double reach) => Path()
@@ -738,6 +882,8 @@ class ComicRoleCard extends StatelessWidget {
             Role.detective => Palette.gold,
             Role.doctor => Palette.cyan,
             Role.civilian => Palette.lavender,
+            Role.maniac => Comic.maniac,
+            Role.bodyguard || Role.hypnotist || Role.immortal => Palette.cyan,
           };
     return SizedBox(
       width: width,
@@ -834,6 +980,37 @@ class _CardPainter extends CustomPainter {
             ..close(),
           inkFill,
         );
+      case Role.maniac:
+        // A kitchen knife.
+        canvas
+          ..drawPath(
+            Path()
+              ..moveTo(c.dx - 4, c.dy + 4)
+              ..lineTo(c.dx - 4, c.dy - 18)
+              ..quadraticBezierTo(c.dx + 6, c.dy - 10, c.dx + 4, c.dy + 4)
+              ..close(),
+            inkFill,
+          )
+          ..drawRRect(
+            RRect.fromLTRBR(
+              c.dx - 5,
+              c.dy + 4,
+              c.dx + 5,
+              c.dy + 17,
+              const Radius.circular(2),
+            ),
+            inkFill,
+          );
+      case Role.bodyguard:
+        canvas.drawPath(_FigurePainter._shield(c.dx, c.dy - 4, 12), inkFill);
+      case Role.hypnotist:
+        for (final r in const [4.0, 9.0, 14.0]) {
+          canvas.drawCircle(c, r, Comic.stroke(3));
+        }
+      case Role.immortal:
+        canvas
+          ..drawCircle(c + const Offset(-7, 0), 7, Comic.stroke(4))
+          ..drawCircle(c + const Offset(7, 0), 7, Comic.stroke(4));
       case null:
         canvas
           ..drawLine(

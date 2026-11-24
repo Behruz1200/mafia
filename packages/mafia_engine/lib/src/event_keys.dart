@@ -16,8 +16,8 @@ abstract final class EventKeys {
   /// [PublicEvent.userId] is out; [PublicEvent.cause] says why.
   static const eliminated = 'eliminated';
 
-  /// The night passed with no one killed (no pick, or the Doctor saved
-  /// them; the town is not told which).
+  /// The night passed with no one killed (no pick, the Doctor saved them,
+  /// or they were the Immortal; the town is not told which).
   static const nobodyDied = 'nobodyDied';
 
   /// Two or more players tied for most votes, so no one is out.
@@ -40,8 +40,11 @@ abstract final class EventKeys {
   /// The town found every Mafia member.
   static const townWon = 'townWon';
 
-  /// The Mafia reached as many players as the town.
+  /// The Mafia reached as many players as everyone else.
   static const mafiaWon = 'mafiaWon';
+
+  /// The Maniac is one of the last two players alive.
+  static const maniacWon = 'maniacWon';
 }
 
 /// The `Rejected.code` values the engine returns.
@@ -57,6 +60,8 @@ abstract final class RejectCodes {
   static const targetTeammate = 'target_teammate';
   static const alreadyChecked = 'already_checked';
   static const sameHealTwice = 'same_heal_twice';
+  static const sameGuardTwice = 'same_guard_twice';
+  static const sameSleepTwice = 'same_sleep_twice';
   static const selfHealUsed = 'self_heal_used';
   static const alreadyLeft = 'already_left';
   static const tooEarly = 'too_early';

@@ -22,6 +22,9 @@ abstract interface class RealtimeRooms {
 
   /// An emoji popped on [userId]'s seat, seen by the same players as chat.
   Future<void> react(UserId userId, RoomId roomId, String emoji);
+
+  /// The host picks the roles for the next match (null: standard deal).
+  Future<void> setRoles(UserId userId, RoomId roomId, Map<Role, int>? counts);
 }
 
 /// Close codes the app can act on.
@@ -85,6 +88,8 @@ Handler socketHandler({
               await rooms.chat(userId, roomId, text);
             case SendReaction(:final roomId, :final emoji):
               await rooms.react(userId, roomId, emoji);
+            case SetRoomRoles(:final roomId, :final roleCounts):
+              await rooms.setRoles(userId, roomId, roleCounts);
           }
         } on RoomError catch (e) {
           fail(e.code, e.message);
@@ -112,6 +117,14 @@ GameAction? stampActor(GameAction a, UserId userId) => switch (a) {
   NightKill(:final targetId) => NightKill(actorId: userId, targetId: targetId),
   NightHeal(:final targetId) => NightHeal(actorId: userId, targetId: targetId),
   NightCheck(:final targetId) => NightCheck(
+    actorId: userId,
+    targetId: targetId,
+  ),
+  NightGuard(:final targetId) => NightGuard(
+    actorId: userId,
+    targetId: targetId,
+  ),
+  NightSleep(:final targetId) => NightSleep(
     actorId: userId,
     targetId: targetId,
   ),

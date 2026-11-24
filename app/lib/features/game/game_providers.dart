@@ -103,6 +103,8 @@ class GameActions {
     'nightKill' => NightKill(actorId: me, targetId: target),
     'nightHeal' => NightHeal(actorId: me, targetId: target),
     'nightCheck' => NightCheck(actorId: me, targetId: target),
+    'nightGuard' => NightGuard(actorId: me, targetId: target),
+    'nightSleep' => NightSleep(actorId: me, targetId: target),
     _ => throw ArgumentError.value(type, 'type', 'not a night action'),
   });
 
@@ -121,6 +123,10 @@ class GameActions {
 
   /// Pops one of `ChatRules.reactions` on my seat.
   Future<void> react(String emoji) => repo.sendReaction(roomId, emoji);
+
+  /// Host only: the roles for the next match (null: standard deal).
+  Future<void> setRoles(Map<Role, int>? roleCounts) =>
+      repo.setRoles(roomId, roleCounts);
 
   Future<void> leave() => repo.leave(roomId);
 

@@ -78,7 +78,14 @@ class _MatchViewState extends State<MatchView> {
       return _donMode ??
           (_done.containsKey('nightKill') ? 'nightCheck' : 'nightKill');
     }
-    const order = ['nightKill', 'nightHeal', 'nightCheck', 'castVote'];
+    const order = [
+      'nightKill',
+      'nightHeal',
+      'nightCheck',
+      'nightGuard',
+      'nightSleep',
+      'castVote',
+    ];
     for (final a in order) {
       if (_allowed.contains(a)) return a;
     }
@@ -106,6 +113,10 @@ class _MatchViewState extends State<MatchView> {
           if (u != me && !mates.contains(u)) u,
       },
       'nightHeal' => alive.toSet(),
+      'nightGuard' || 'nightSleep' => {
+        for (final u in alive)
+          if (u != me) u,
+      },
       'nightCheck' => {
         for (final u in alive)
           if (u != me && !mates.contains(u) && !checks.containsKey(u)) u,
@@ -347,12 +358,18 @@ class _MatchViewState extends State<MatchView> {
       next = other;
     }
     return switch ((widget.state.phase, next)) {
+      (_, 'nightKill') when widget.private?.role == Role.maniac =>
+        t.gameNightManiacPrompt,
       (_, 'nightKill') => t.gameNightKillPrompt,
+      (_, 'nightGuard') => t.gameNightGuardPrompt,
+      (_, 'nightSleep') => t.gameNightSleepPrompt,
       (_, 'nightHeal') => t.gameNightHealPrompt,
       (_, 'nightCheck') when _donChoice => t.gameNightDonCheckPrompt,
       (_, 'nightCheck') => t.gameNightCheckPrompt,
       (_, 'castVote') => t.gameVotePrompt,
       (GamePhase.night, _) => t.gameNightSleep,
+      (GamePhase.day, _) when widget.private?.wasAsleep ?? false =>
+        t.gameWasAsleep,
       (GamePhase.day, _) => t.gameDayPrompt,
       _ => t.gameActionSent,
     };

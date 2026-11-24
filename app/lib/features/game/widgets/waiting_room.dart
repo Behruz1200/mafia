@@ -8,6 +8,7 @@ import '../../call/call_view.dart';
 import '../ui/game_style.dart';
 import 'chat_panel.dart';
 import 'player_table.dart';
+import 'role_setup_panel.dart';
 
 /// Before the match: invite code, who is seated, stake, and Start for the
 /// host.
@@ -18,6 +19,7 @@ class WaitingRoom extends StatelessWidget {
     required this.players,
     required this.me,
     required this.onStart,
+    this.onSetRoles,
   });
 
   final Room room;
@@ -27,6 +29,9 @@ class WaitingRoom extends StatelessWidget {
   final List<Player>? players;
   final UserId? me;
   final Future<void> Function() onStart;
+
+  /// Host only: saves the roles for the next match (null: standard deal).
+  final Future<void> Function(Map<Role, int>? roleCounts)? onSetRoles;
 
   @override
   Widget build(BuildContext context) {
@@ -142,6 +147,13 @@ class WaitingRoom extends StatelessWidget {
                       e.key: ReactionPop(emoji: e.value),
                   },
                 ),
+              ),
+              const SizedBox(height: 12),
+              RoleSetupPanel(
+                room: room,
+                seated: seated.length,
+                isHost: isHost,
+                onSetRoles: onSetRoles,
               ),
               const SizedBox(height: 12),
               ChatPanel(roomId: room.id, state: null, private: null, me: me),

@@ -13,7 +13,26 @@ class EngineMemory {
     this.afterLastWord,
     this.nights = const [],
     this.days = const [],
+    this.lastGuard,
+    this.lastSleep,
+    this.asleep,
+    this.lastWordQueue = const [],
   });
+
+  /// Who the Bodyguard guarded last night (not the same player twice in a
+  /// row).
+  final UserId? lastGuard;
+
+  /// Who the Hypnotist put to sleep last night (not the same player twice
+  /// in a row).
+  final UserId? lastSleep;
+
+  /// Who slept through last night's power, until the next night starts.
+  final UserId? asleep;
+
+  /// Players killed in the same night who still get their last word after
+  /// the one speaking now, in order.
+  final List<UserId> lastWordQueue;
 
   /// Who the Doctor protected last night (they cannot pick them again
   /// tonight).
@@ -49,6 +68,10 @@ class EngineMemory {
     GamePhase? Function()? afterLastWord,
     List<StoryNight>? nights,
     List<StoryVote>? days,
+    UserId? Function()? lastGuard,
+    UserId? Function()? lastSleep,
+    UserId? Function()? asleep,
+    List<UserId>? lastWordQueue,
   }) => EngineMemory(
     lastHeal: lastHeal == null ? this.lastHeal : lastHeal(),
     selfHealUsed: selfHealUsed ?? this.selfHealUsed,
@@ -58,6 +81,10 @@ class EngineMemory {
     afterLastWord: afterLastWord == null ? this.afterLastWord : afterLastWord(),
     nights: nights ?? this.nights,
     days: days ?? this.days,
+    lastGuard: lastGuard == null ? this.lastGuard : lastGuard(),
+    lastSleep: lastSleep == null ? this.lastSleep : lastSleep(),
+    asleep: asleep == null ? this.asleep : asleep(),
+    lastWordQueue: lastWordQueue ?? this.lastWordQueue,
   );
 
   Json toJson() => {
@@ -74,6 +101,10 @@ class EngineMemory {
     'afterLastWord': afterLastWord?.name,
     'nights': [for (final n in nights) n.toJson()],
     'days': [for (final d in days) d.toJson()],
+    'lastGuard': lastGuard,
+    'lastSleep': lastSleep,
+    'asleep': asleep,
+    'lastWordQueue': lastWordQueue,
   };
 
   factory EngineMemory.fromJson(Json j) => EngineMemory(
@@ -106,6 +137,12 @@ class EngineMemory {
     days: [
       for (final e in (j['days'] as List? ?? const []))
         StoryVote.fromJson(e as Json),
+    ],
+    lastGuard: j['lastGuard'] as String?,
+    lastSleep: j['lastSleep'] as String?,
+    asleep: j['asleep'] as String?,
+    lastWordQueue: [
+      for (final e in (j['lastWordQueue'] as List? ?? const [])) e as String,
     ],
   );
 }

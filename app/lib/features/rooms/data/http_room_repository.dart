@@ -185,6 +185,12 @@ class HttpRoomRepository implements RoomRepository {
     _sendFrame(SendReaction(roomId, emoji));
   }
 
+  @override
+  Future<void> setRoles(RoomId roomId, Map<Role, int>? roleCounts) async {
+    _ensureSocket();
+    _sendFrame(SetRoomRoles(roomId, roleCounts));
+  }
+
   /// Keeps [_chat] up to date before listeners hear about a message.
   void _remember(ServerMessage m) {
     switch (m) {

@@ -167,6 +167,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         players: public?.phase == GamePhase.lobby ? public!.players : null,
         me: me,
         onStart: actions.startMatch,
+        onSetRoles: actions.setRoles,
       );
     } else if (public.phase == GamePhase.roleReveal) {
       body = _RoleReveal(

@@ -111,7 +111,10 @@ class _LiveRoom {
   final RoomId id;
   final InviteCode code;
   UserId hostId;
-  final RoomSettings settings;
+
+  /// Fixed at creation, except the roles: the host may change
+  /// `roleCounts` in the waiting room ([RoomService.setRoles]).
+  RoomSettings settings;
   final DateTime createdAt;
   final members = <_Member>[];
   RoomStatus status = RoomStatus.open;
@@ -382,6 +385,45 @@ class RoomService implements RealtimeRooms {
     _apply(r, action, fromPlayer: true);
   }
 
+  /// The host picks the roles for the next match. Only between matches,
+  /// and only in rooms joined by code: quick-match rooms seat strangers for
+  /// coins, so they always use the standard deal.
+  ///
+  /// The setup must be fair for a full table here; whether it is fair for
+  /// the players actually seated is checked again at Start.
+  @override
+  Future<void> setRoles(UserId u, RoomId roomId, Map<Role, int>? counts) async {
+    final r = _rooms[roomId];
+    if (r == null || !r.has(u)) throw RoomError.notMember;
+    if (r.hostId != u) throw RoomError.notHost;
+    if (r.settings.visibility == RoomVisibility.public) {
+      throw const RoomError('roles_locked', 403);
+    }
+    if (r.status != RoomStatus.open || r.starting) throw RoomError.inMatch;
+    final clean = counts == null
+        ? null
+        : {
+            for (final e in counts.entries)
+              if (e.key != Role.civilian && e.value != 0) e.key: e.value,
+          };
+    if (clean != null) {
+      final problem = RoleSetup.check(r.settings.maxPlayers, clean);
+      if (problem != null) throw RoomError(problem.code, 400);
+    }
+    final s = r.settings;
+    r
+      ..settings = RoomSettings(
+        minPlayers: s.minPlayers,
+        maxPlayers: s.maxPlayers,
+        stake: s.stake,
+        visibility: s.visibility,
+        roleCounts: clean,
+        durations: s.durations,
+      )
+      ..lastActivity = _now();
+    _changed(r);
+  }
+
   // ----------------------------------------------------------------- chat
 
   /// A chat message. Who may write and who reads it follows `ChatRules`
@@ -527,6 +569,12 @@ class RoomService implements RealtimeRooms {
     ];
     if (seated.length < r.settings.minPlayers) {
       throw RoomError.notEnoughPlayers;
+    }
+    // The host's roles must still make a fair game for who is here.
+    final fixed = r.settings.roleCounts;
+    if (fixed != null) {
+      final problem = RoleSetup.check(seated.length, fixed);
+      if (problem != null) throw RoomError(problem.code, 409);
     }
     r.autoStart?.cancel();
     r.starting = true;
@@ -820,7 +868,8 @@ class RoomService implements RealtimeRooms {
         s.minPlayers <= s.maxPlayers &&
         s.stake >= 0 &&
         s.stake <= config.maxStake &&
-        (s.roleCounts?.values.every((n) => n >= 0) ?? true) &&
+        (s.roleCounts == null ||
+            RoleSetup.check(s.maxPlayers, s.roleCounts!) == null) &&
         okSec(d.roleReveal, 3, 60) &&
         okSec(d.night, 10, 180) &&
         okSec(d.day, 20, 600) &&
