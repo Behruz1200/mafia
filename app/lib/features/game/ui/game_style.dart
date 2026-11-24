@@ -17,6 +17,9 @@ abstract final class GameStyle {
   static const sun = Palette.sun;
   static const muted = Palette.muted;
 
+  /// The Maniac's side: neither Mafia red nor town cyan.
+  static const maniac = Color(0xFFFF8A3D);
+
   static const radius = 22.0;
 
   /// A soft violet glow in the top right corner.
@@ -58,12 +61,14 @@ abstract final class GameStyle {
   static Color teamColor(Team team) => switch (team) {
     Team.town => town,
     Team.mafia => crimson,
+    Team.maniac => maniac,
   };
 
   /// The two colours of a role card's face.
   static List<Color> teamGradient(Team team) => switch (team) {
     Team.mafia => const [Palette.accent, Palette.accentDeep],
     Team.town => const [Color(0xFF18B9C7), Color(0xFF3A2A9E)],
+    Team.maniac => const [Color(0xFFFF8A3D), Color(0xFF8A2A12)],
   };
 
   static IconData roleIcon(Role role) => switch (role) {
@@ -72,6 +77,10 @@ abstract final class GameStyle {
     Role.detective => Icons.search,
     Role.mafia => Icons.theater_comedy,
     Role.don => Icons.workspace_premium,
+    Role.maniac => Icons.dangerous_rounded,
+    Role.bodyguard => Icons.shield_rounded,
+    Role.hypnotist => Icons.bedtime_rounded,
+    Role.immortal => Icons.all_inclusive_rounded,
   };
 
   static Gradient backgroundFor(GamePhase? phase) => switch (phase) {

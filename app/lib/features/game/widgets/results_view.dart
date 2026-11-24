@@ -79,6 +79,8 @@ class ResultsView extends StatelessWidget {
                   ? Icons.block_rounded
                   : winner == Team.mafia
                   ? Icons.theater_comedy
+                  : winner == Team.maniac
+                  ? GameStyle.roleIcon(Role.maniac)
                   : Icons.location_city_rounded,
               size: 68,
               color: color,
@@ -91,6 +93,8 @@ class ResultsView extends StatelessWidget {
               ? t.gamePhaseEnded
               : winner == Team.mafia
               ? t.gameResultMafiaWins
+              : winner == Team.maniac
+              ? t.gameResultManiacWins
               : t.gameResultTownWins,
           textAlign: TextAlign.center,
           style: GameStyle.display(28, color: color),
@@ -233,13 +237,18 @@ class ResultsView extends StatelessWidget {
   }
 }
 
-/// Mafia team first (Don, then Mafia), then Detective, Doctor, Civilians.
+/// Mafia team first (Don, then Mafia), then the Maniac, then the town's
+/// roles, Civilians last.
 int _rank(Role r) => switch (r) {
   Role.don => 0,
   Role.mafia => 1,
-  Role.detective => 2,
-  Role.doctor => 3,
-  Role.civilian => 4,
+  Role.maniac => 2,
+  Role.detective => 3,
+  Role.doctor => 4,
+  Role.bodyguard => 5,
+  Role.hypnotist => 6,
+  Role.immortal => 7,
+  Role.civilian => 8,
 };
 
 class _SectionTitle extends StatelessWidget {
@@ -315,7 +324,7 @@ class _RoleRow extends StatelessWidget {
               color: color.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: color.withValues(alpha: 0.5)),
-              boxShadow: role.team == Team.mafia
+              boxShadow: role.team != Team.town
                   ? [
                       BoxShadow(
                         color: color.withValues(alpha: 0.35),

@@ -137,7 +137,12 @@ class DemoMatch {
         Role.mafia || Role.don => const ['nightKill'],
         Role.doctor => const ['nightHeal'],
         Role.detective => const ['nightCheck'],
-        Role.civilian => const [],
+        // The demo deal has none of the newer roles.
+        Role.civilian ||
+        Role.maniac ||
+        Role.bodyguard ||
+        Role.hypnotist ||
+        Role.immortal => const [],
       });
     }
     _after(night, _startDay);

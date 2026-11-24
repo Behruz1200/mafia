@@ -5,6 +5,7 @@ import '../models/game_action.dart';
 import '../models/game_state.dart';
 import '../models/ids.dart';
 import '../models/match_result.dart';
+import '../models/role.dart';
 import '../models/room.dart';
 import '../models/wallet.dart';
 
@@ -73,6 +74,11 @@ abstract interface class RoomRepository {
 
   /// Pop one of `ChatRules.reactions` on my seat.
   Future<void> sendReaction(RoomId roomId, String emoji);
+
+  /// Host only, in the waiting room: the roles for the next match (every
+  /// role but Civilian; null for the standard deal). The new setup comes
+  /// back on [watchRoom]; a refusal comes as a socket error.
+  Future<void> setRoles(RoomId roomId, Map<Role, int>? roleCounts);
 }
 
 /// Owned by stream 4 (coins).

@@ -11,6 +11,23 @@ extension GameText on AppLocalizations {
     Role.detective => gameRoleDetective,
     Role.mafia => gameRoleMafia,
     Role.don => gameRoleDon,
+    Role.maniac => gameRoleManiac,
+    Role.bodyguard => gameRoleBodyguard,
+    Role.hypnotist => gameRoleHypnotist,
+    Role.immortal => gameRoleImmortal,
+  };
+
+  /// One short line on what [role] does, for the role picker.
+  String roleShort(Role role) => switch (role) {
+    Role.civilian => gameRoleCivilianShort,
+    Role.doctor => gameRoleDoctorShort,
+    Role.detective => gameRoleDetectiveShort,
+    Role.mafia => gameRoleMafiaShort,
+    Role.don => gameRoleDonShort,
+    Role.maniac => gameRoleManiacShort,
+    Role.bodyguard => gameRoleBodyguardShort,
+    Role.hypnotist => gameRoleHypnotistShort,
+    Role.immortal => gameRoleImmortalShort,
   };
 
   String roleGoal(Role role) => switch (role) {
@@ -19,11 +36,16 @@ extension GameText on AppLocalizations {
     Role.detective => gameRoleDetectiveGoal,
     Role.mafia => gameRoleMafiaGoal,
     Role.don => gameRoleDonGoal,
+    Role.maniac => gameRoleManiacGoal,
+    Role.bodyguard => gameRoleBodyguardGoal,
+    Role.hypnotist => gameRoleHypnotistGoal,
+    Role.immortal => gameRoleImmortalGoal,
   };
 
   String teamName(Team team) => switch (team) {
     Team.town => gameTeamTown,
     Team.mafia => gameTeamMafia,
+    Team.maniac => gameTeamManiac,
   };
 
   String phaseName(GamePhase phase) => switch (phase) {
@@ -78,6 +100,13 @@ extension GameText on AppLocalizations {
     'self_heal_used' => errorSelfHealUsed,
     'already_checked' => errorAlreadyChecked,
     'target_teammate' => errorTargetTeammate,
+    'same_guard_twice' => errorSameGuardTwice,
+    'same_sleep_twice' => errorSameSleepTwice,
+    'roles_no_mafia' => errorRolesNoMafia,
+    'roles_too_many' => errorRolesTooMany,
+    'roles_too_strong' => errorRolesTooStrong,
+    'roles_invalid' => errorRolesInvalid,
+    'roles_locked' => errorRolesLocked,
     'wrong_phase' || 'match_ended' || 'too_early' || 'chat_empty' => null,
     'target_dead' || 'actor_dead' || 'already_left' => null,
     _ => fallback,
