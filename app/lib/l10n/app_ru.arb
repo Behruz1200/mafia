@@ -208,8 +208,6 @@
   "gameSkipUndo": "Отменить",
   "gameEventPhaseSkipped": "Большинство согласились пропустить таймер",
   "languageTitle": "Язык",
-  "refresh": "Обновить",
-  "refreshDone": "Обновлено",
   "phaseLastWord": "Последнее слово",
   "gameLastWordYou": "Ваше последнее слово. Скажите его в камеру или напишите ниже, затем нажмите «Готово».",
   "gameLastWordListen": "{name} говорит последнее слово. Слушайте.",

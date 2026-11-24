@@ -233,8 +233,6 @@
   "gameSkipUndo": "Undo",
   "gameEventPhaseSkipped": "Most players agreed to skip the timer",
   "languageTitle": "Language",
-  "refresh": "Refresh",
-  "refreshDone": "Refreshed",
   "phaseLastWord": "Last word",
   "gameLastWordYou": "Your last word. Talk on camera or type it below, then tap Done.",
   "gameLastWordListen": "{name} is saying a last word. Listen.",

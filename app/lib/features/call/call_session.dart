@@ -79,8 +79,8 @@ class CallSession {
         '${_me?.role.name}';
   }
 
-  /// Asks for fresh grants and reconnects whatever dropped, e.g. from the
-  /// refresh button when a camera looks frozen.
+  /// Asks for fresh grants and reconnects whatever dropped, e.g. when the
+  /// app comes back to the front and a camera may have frozen.
   void resync() {
     _lastKey = null;
     _schedule();

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -91,68 +89,42 @@ class LanguageButton extends ConsumerWidget {
   }
 }
 
-/// A round "refresh" button for screens that can look stuck (home, the
-/// waiting room, the table). It spins until [onPressed] is done.
-class RefreshButton extends StatefulWidget {
-  const RefreshButton({super.key, required this.onPressed, this.size = 40});
-
-  final Future<void> Function() onPressed;
-  final double size;
+/// The three languages side by side, the current one lit. For the profile
+/// screen, where there is room for the names in full.
+class LanguagePicker extends ConsumerWidget {
+  const LanguagePicker({super.key});
 
   @override
-  State<RefreshButton> createState() => _RefreshButtonState();
-}
-
-class _RefreshButtonState extends State<RefreshButton>
-    with SingleTickerProviderStateMixin {
-  late final _spin = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 800),
-  );
-  bool _busy = false;
-
-  Future<void> _run() async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    unawaited(_spin.repeat());
-    try {
-      await widget.onPressed();
-    } finally {
-      _spin
-        ..stop()
-        ..reset();
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  void dispose() {
-    _spin.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      key: const ValueKey('refresh-button'),
-      tooltip: AppLocalizations.of(context).refresh,
-      onPressed: _busy ? null : _run,
-      style: IconButton.styleFrom(
-        fixedSize: Size.square(widget.size),
-        minimumSize: Size.square(widget.size),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = Localizations.localeOf(context).languageCode;
+    return SegmentedButton<String>(
+      key: const ValueKey('language-picker'),
+      showSelectedIcon: false,
+      style: SegmentedButton.styleFrom(
         backgroundColor: Palette.surfaceHigh,
-        disabledBackgroundColor: Palette.surfaceHigh,
-        foregroundColor: Palette.text,
-        disabledForegroundColor: Palette.cyan,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: Palette.outlineSoft),
-        ),
+        selectedBackgroundColor: Palette.cyan,
+        selectedForegroundColor: Palette.background,
+        side: const BorderSide(color: Palette.outlineSoft),
+        minimumSize: const Size.fromHeight(48),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
       ),
-      icon: RotationTransition(
-        turns: _spin,
-        child: const Icon(Icons.refresh_rounded, size: 20),
-      ),
+      segments: [
+        for (final l in supportedAppLocales)
+          ButtonSegment(
+            value: l.languageCode,
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                appLanguageNames[l.languageCode]!,
+                key: ValueKey('language-${l.languageCode}'),
+                maxLines: 1,
+              ),
+            ),
+          ),
+      ],
+      selected: {current},
+      onSelectionChanged: (picked) =>
+          ref.read(appLocaleProvider.notifier).set(Locale(picked.first)),
     );
   }
 }
