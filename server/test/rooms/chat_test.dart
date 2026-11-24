@@ -268,12 +268,15 @@ void main() {
     });
   });
 
-  test('the Mafia night chat is dropped when the next match starts', () {
+  test('the chat starts empty when the next match starts', () {
     run(() {
       start();
       a.elapse(const Duration(seconds: 3)); // night
       final mafia = first(Role.mafia);
       expect(say(mafia, 'secret'), isNull);
+      a.elapse(const Duration(seconds: 10)); // day
+      final talker = users.firstWhere((u) => u != mafia);
+      expect(say(talker, 'hello table'), isNull);
       // End the match: the only Mafia leaves, so the town wins.
       rig.service.leave(mafia, roomId);
       a.flushMicrotasks();
@@ -282,7 +285,15 @@ void main() {
       a.flushMicrotasks();
       rig.service.watch(rig.socket(mafia).conn, roomId);
       a.flushMicrotasks();
-      expect(history(mafia), ['secret'], reason: 'still their match');
+      expect(history(mafia), [
+        'secret',
+        'hello table',
+      ], reason: 'still their match');
+      // Everyone taps Play again, then the host starts.
+      for (final u in users) {
+        rig.service.comeBack(u, roomId);
+      }
+      a.flushMicrotasks();
       final host = rig.service.room(roomId)!.hostId;
       rig.service.act(host, roomId, StartMatch(actorId: host));
       a.flushMicrotasks();

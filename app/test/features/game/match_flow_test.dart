@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mafia_app/features/game/game_screen.dart';
 import 'package:mafia_app/features/game/ui/game_text.dart';
 import 'package:mafia_app/l10n/generated/app_localizations_en.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'harness.dart';
 
@@ -31,6 +32,160 @@ PublicGameState _state(
 }
 
 void main() {
+  group('Play again', () {
+    Room roomWith({
+      required List<UserId> notBack,
+      UserId host = 'user_0',
+      List<UserId> offline = const [],
+    }) {
+      final r = sampleRoom();
+      return Room(
+        id: r.id,
+        inviteCode: r.inviteCode,
+        hostId: host,
+        status: RoomStatus.open,
+        settings: r.settings,
+        memberIds: r.memberIds,
+        memberNames: r.memberNames,
+        createdAt: r.createdAt,
+        notBackIds: notBack,
+        offlineIds: offline,
+      );
+    }
+
+    Future<FakeRoomRepository> ended(WidgetTester tester) async {
+      final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+      repo
+        ..emitPublic(_state(GamePhase.ended, winner: Team.town))
+        ..emitMatchEnd(
+          MatchResult(
+            roomId: 'room_1',
+            matchId: 'match_1',
+            stake: 0,
+            winningTeam: Team.town,
+            winners: const ['user_0'],
+            losers: const ['user_4'],
+            endedAt: fixtureNow,
+          ),
+        );
+      await tester.pumpAndSettle();
+      return repo;
+    }
+
+    final all = [for (var i = 0; i < 8; i++) 'user_$i'];
+
+    testWidgets('tells the server, and the host who is back and to start', (
+      tester,
+    ) async {
+      final repo = await ended(tester);
+      repo.emitRoom(roomWith(notBack: ['user_0', 'user_6', 'user_7']));
+      await tester.pumpAndSettle();
+      // On the results: who is back already, and that Start is on me.
+      final status = find.byKey(const ValueKey('results-status'));
+      await tester.scrollUntilVisible(status, 300);
+      expect(
+        find.descendant(of: status, matching: find.textContaining('5 of 8')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('You are the host'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('play-again')));
+      await tester.pumpAndSettle();
+      expect(repo.cameBack, ['room_1']);
+
+      repo.emitRoom(roomWith(notBack: ['user_6', 'user_7']));
+      await tester.pumpAndSettle();
+      expect(find.text('NOT BACK'), findsNWidgets(2));
+      expect(
+        find.text(
+          '6 of 8 are back. Start now and the others play the next game.',
+        ),
+        findsOneWidget,
+      );
+      final start = tester.widget<ButtonStyleButton>(
+        find.ancestor(
+          of: find.text('Start the game'),
+          matching: find.bySubtype<ButtonStyleButton>(),
+        ),
+      );
+      expect(start.onPressed, isNotNull);
+
+      repo.emitRoom(roomWith(notBack: const []));
+      await tester.pumpAndSettle();
+      expect(find.text('Everyone is back. Start the game!'), findsOneWidget);
+    });
+
+    testWidgets('Start waits until enough are back, others wait for the host', (
+      tester,
+    ) async {
+      final repo = await ended(tester);
+      await tester.tap(find.byKey(const ValueKey('play-again')));
+      await tester.pumpAndSettle();
+      repo.emitRoom(
+        roomWith(
+          host: 'user_1',
+          notBack: [
+            for (final u in all)
+              if (u != 'user_0' && u != 'user_2') u,
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      final host = sampleRoom().memberNames['user_1']!;
+      expect(find.text('Waiting for $host to start the game'), findsOneWidget);
+      expect(find.textContaining('2 of 8 are back'), findsOneWidget);
+    });
+
+    testWidgets('a game that started without me keeps my results up', (
+      tester,
+    ) async {
+      final repo = await ended(tester);
+      repo
+        ..emitRoom(roomWith(notBack: ['user_0']))
+        ..emitPublic(
+          PublicGameState(
+            roomId: 'room_1',
+            matchId: 'match_2',
+            phase: GamePhase.night,
+            round: 1,
+            players: [
+              for (final p in samplePlayers(8))
+                if (p.userId != 'user_0') p,
+            ],
+          ),
+        );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('started without you'), findsOneWidget);
+      expect(find.byKey(const ValueKey('play-again')), findsOneWidget);
+    });
+
+    testWidgets('the host taps a seat to make that player the host', (
+      tester,
+    ) async {
+      final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+      repo.emitRoom(roomWith(notBack: const []));
+      await tester.pumpAndSettle();
+      final name = sampleRoom().memberNames['user_3']!;
+      final seat = find.byKey(const ValueKey('seat-user_3'));
+      await tester.scrollUntilVisible(
+        seat,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(seat);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Make $name the host'));
+      await tester.pumpAndSettle();
+      expect(repo.room.hostId, 'user_3');
+      expect(find.text('Start the game'), findsNothing);
+      expect(find.text('Waiting for $name to start the game'), findsOneWidget);
+      // Only the host can hand it on.
+      await tester.tap(seat);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('the host'), findsNothing);
+    });
+  });
+
   testWidgets('Play again shows who is seated now, not the last table', (
     tester,
   ) async {

@@ -27,6 +27,7 @@ class PlayerTable extends StatelessWidget {
     this.face,
     this.overlays = const {},
     this.highlight,
+    this.notes = const {},
   });
 
   final List<Player> players;
@@ -43,6 +44,10 @@ class PlayerTable extends StatelessWidget {
 
   /// A seat to ring in gold, e.g. the player saying their last word.
   final UserId? highlight;
+
+  /// A short dimmed label on a seat, e.g. "Not back" in the
+  /// waiting room after a match.
+  final Map<UserId, String> notes;
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +86,7 @@ class PlayerTable extends StatelessWidget {
               face: face,
               overlay: overlays[p.userId],
               highlighted: highlight == p.userId,
+              note: notes[p.userId],
               onTap: selectable.contains(p.userId) && onSelect != null
                   ? () => onSelect!(p.userId)
                   : null,
@@ -108,6 +114,7 @@ class SeatTile extends StatelessWidget {
     this.onTap,
     this.overlay,
     this.highlighted = false,
+    this.note,
   });
 
   final Player player;
@@ -127,6 +134,9 @@ class SeatTile extends StatelessWidget {
 
   /// Gold ring and live camera even when out (their last word).
   final bool highlighted;
+
+  /// A short label, and the seat dimmed (e.g. not back from the results).
+  final String? note;
 
   static const _radius = 18.0;
 
@@ -182,6 +192,8 @@ class SeatTile extends StatelessWidget {
           )
         : isTeammate
         ? _Tag(text: t.gameTeamMafia, color: Palette.accent)
+        : note != null
+        ? _Tag(text: note!, color: Palette.surfaceHigh)
         : !player.isConnected
         ? _Tag(text: t.gameOffline, color: Palette.surfaceHigh)
         : null;
@@ -200,7 +212,7 @@ class SeatTile extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             child: Opacity(
-              opacity: dead && !highlighted ? 0.55 : 1,
+              opacity: (dead && !highlighted) || note != null ? 0.55 : 1,
               child: Stack(
                 fit: StackFit.expand,
                 children: [

@@ -20,6 +20,8 @@ class WaitingRoom extends StatelessWidget {
     required this.me,
     required this.onStart,
     this.onSetRoles,
+    this.onMakeHost,
+    this.rematch = false,
   });
 
   final Room room;
@@ -33,6 +35,14 @@ class WaitingRoom extends StatelessWidget {
   /// Host only: saves the roles for the next match (null: standard deal).
   final Future<void> Function(Map<Role, int>? roleCounts)? onSetRoles;
 
+  /// Host only: hands the host role to another player, who taps their
+  /// seat to get here.
+  final Future<void> Function(UserId userId)? onMakeHost;
+
+  /// Back here after a match (Play again), so the host is told when
+  /// everyone is back.
+  final bool rematch;
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
@@ -45,11 +55,41 @@ class WaitingRoom extends StatelessWidget {
               displayName: room.memberNames[id] ?? '…',
               seat: i,
               isHost: id == room.hostId,
+              isConnected: !room.offlineIds.contains(id),
             ),
         ];
     final isHost = room.hostId == me;
-    final enough = seated.length >= room.settings.minPlayers;
+    // Only players who are here and back from the last results get a
+    // card, so they are the ones who count.
+    final ready = room.readyIds.length;
+    final total = room.memberIds.length;
+    final enough = ready >= room.settings.minPlayers;
     final stake = room.settings.stake;
+    final hostName = room.memberNames[room.hostId];
+    final (IconData, String)? note = switch (()) {
+      _ when !enough && ready < total => (
+        Icons.hourglass_top_rounded,
+        '${t.gameBackCount(ready, total)} · '
+            '${t.gameNeedMorePlayers(room.settings.minPlayers)}',
+      ),
+      _ when !enough => (
+        Icons.group_add_rounded,
+        t.gameNeedMorePlayers(room.settings.minPlayers),
+      ),
+      _ when isHost && ready < total => (
+        Icons.hourglass_top_rounded,
+        t.gameStartWithBack(ready, total),
+      ),
+      _ when isHost && rematch => (
+        Icons.celebration_rounded,
+        t.gameEveryoneBack,
+      ),
+      _ when ready < total => (
+        Icons.hourglass_top_rounded,
+        t.gameBackCount(ready, total),
+      ),
+      _ => null,
+    };
 
     return Column(
       children: [
@@ -140,6 +180,20 @@ class WaitingRoom extends StatelessWidget {
                 builder: (context, showing) => PlayerTable(
                   players: seated,
                   me: me,
+                  notes: {for (final u in room.notBackIds) u: t.gameNotBack},
+                  // The host taps a friend's seat to make them the host.
+                  selectable: isHost && onMakeHost != null
+                      ? {
+                          for (final p in seated)
+                            if (p.userId != me) p.userId,
+                        }
+                      : const {},
+                  onSelect: (id) => _askMakeHost(
+                    context,
+                    room.memberNames[id] ??
+                        seated.firstWhere((p) => p.userId == id).displayName,
+                    () => onMakeHost!(id),
+                  ),
                   face: (id, placeholder) =>
                       SeatVideo(userId: id, placeholder: placeholder),
                   overlays: {
@@ -148,10 +202,18 @@ class WaitingRoom extends StatelessWidget {
                   },
                 ),
               ),
+              if (isHost && onMakeHost != null && seated.length > 1) ...[
+                const SizedBox(height: 10),
+                _Note(
+                  icon: Icons.star_outline_rounded,
+                  text: t.gameTapToMakeHost,
+                ),
+              ],
               const SizedBox(height: 12),
               RoleSetupPanel(
                 room: room,
-                seated: seated.length,
+                // Dealt only to those who are here and back.
+                seated: ready,
                 isHost: isHost,
                 onSetRoles: onSetRoles,
               ),
@@ -183,10 +245,11 @@ class WaitingRoom extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: 10,
               children: [
-                if (!enough)
+                if (note != null)
                   _Note(
-                    icon: Icons.group_add_rounded,
-                    text: t.gameNeedMorePlayers(room.settings.minPlayers),
+                    key: const ValueKey('waiting-note'),
+                    icon: note.$1,
+                    text: note.$2,
                   ),
                 // Camera and mic on the left, Start (or the wait) beside
                 // them: one row, so nothing floats alone on a small phone.
@@ -237,7 +300,9 @@ class WaitingRoom extends StatelessWidget {
                               ),
                               Flexible(
                                 child: Text(
-                                  t.gameWaitingForHost,
+                                  hostName == null
+                                      ? t.gameWaitingForHost
+                                      : t.gameWaitingForHostName(hostName),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   textAlign: TextAlign.center,
@@ -261,9 +326,83 @@ class WaitingRoom extends StatelessWidget {
   }
 }
 
+/// Asks the host whether to hand the host role to [name].
+Future<void> _askMakeHost(
+  BuildContext context,
+  String name,
+  Future<void> Function() makeHost,
+) {
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: GameStyle.felt,
+    showDragHandle: true,
+    builder: (context) {
+      final t = AppLocalizations.of(context);
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 12,
+            children: [
+              Row(
+                spacing: 14,
+                children: [
+                  const IconBlob(
+                    icon: Icons.star_rounded,
+                    color: GameStyle.gold,
+                    size: 48,
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 4,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GameStyle.display(20),
+                        ),
+                        Text(
+                          t.gameMakeHostHint,
+                          style: const TextStyle(color: GameStyle.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              FilledButton.icon(
+                key: const ValueKey('make-host'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  backgroundColor: GameStyle.gold,
+                  foregroundColor: GameStyle.felt,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+                icon: const Icon(Icons.star_rounded),
+                label: Text(t.gameMakeHost(name)),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  makeHost();
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
 /// One muted line with an icon, above the bottom bar's buttons.
 class _Note extends StatelessWidget {
-  const _Note({required this.icon, required this.text});
+  const _Note({super.key, required this.icon, required this.text});
 
   final IconData icon;
   final String text;

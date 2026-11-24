@@ -19,9 +19,17 @@ class ResultsView extends StatelessWidget {
     required this.me,
     required this.onPlayAgain,
     required this.onBackToLobby,
+    this.room,
+    this.startedWithoutMe = false,
   });
 
   final PublicGameState state;
+
+  /// The room now: who is back in the waiting room, who is the host.
+  final Room? room;
+
+  /// The others started the next match while I was still here.
+  final bool startedWithoutMe;
   final MatchResult? result;
   final UserId? me;
   final VoidCallback onPlayAgain;
@@ -214,12 +222,14 @@ class ResultsView extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 30),
+        ?_status(t),
         DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             boxShadow: GameStyle.glow(GameStyle.crimson),
           ),
           child: FilledButton.icon(
+            key: const ValueKey('play-again'),
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(56),
             ),
@@ -237,6 +247,52 @@ class ResultsView extends StatelessWidget {
           child: Text(t.gameBackToLobby),
         ),
       ],
+    );
+  }
+
+  /// What Play again leads to: who is already back, and for the host,
+  /// that the next game waits on them.
+  Widget? _status(AppLocalizations t) {
+    final r = room;
+    final String? text;
+    final IconData icon;
+    if (startedWithoutMe) {
+      text = t.gameStartedWithoutYou;
+      icon = Icons.play_circle_outline_rounded;
+    } else if (r == null) {
+      return null;
+    } else {
+      final back = r.readyIds.length;
+      final lines = [
+        if (back > 0) t.gameBackCount(back, r.memberIds.length),
+        if (r.hostId == me) t.gameResultsHostHint,
+      ];
+      if (lines.isEmpty) return null;
+      text = lines.join('\n');
+      icon = r.hostId == me ? Icons.star_rounded : Icons.groups_rounded;
+    }
+    return Padding(
+      key: const ValueKey('results-status'),
+      padding: const EdgeInsets.only(bottom: 14),
+      child: GamePanel(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Row(
+          spacing: 10,
+          children: [
+            Icon(icon, color: GameStyle.gold, size: 22),
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

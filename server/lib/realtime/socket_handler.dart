@@ -25,6 +25,12 @@ abstract interface class RealtimeRooms {
 
   /// The host picks the roles for the next match (null: standard deal).
   Future<void> setRoles(UserId userId, RoomId roomId, Map<Role, int>? counts);
+
+  /// [userId] tapped Play again after a match and is back for the next one.
+  Future<void> comeBack(UserId userId, RoomId roomId);
+
+  /// The host makes [to] the host instead.
+  Future<void> setHost(UserId userId, RoomId roomId, UserId to);
 }
 
 /// Close codes the app can act on.
@@ -90,6 +96,10 @@ Handler socketHandler({
               await rooms.react(userId, roomId, emoji);
             case SetRoomRoles(:final roomId, :final roleCounts):
               await rooms.setRoles(userId, roomId, roleCounts);
+            case ComeBack(:final roomId):
+              await rooms.comeBack(userId, roomId);
+            case SetHost(:final roomId, userId: final to):
+              await rooms.setHost(userId, roomId, to);
           }
         } on RoomError catch (e) {
           fail(e.code, e.message);

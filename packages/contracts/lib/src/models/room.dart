@@ -107,6 +107,8 @@ class Room {
     required this.createdAt,
     this.currentMatchId,
     this.memberNames = const {},
+    this.notBackIds = const [],
+    this.offlineIds = const [],
   });
 
   final RoomId id;
@@ -125,6 +127,20 @@ class Room {
   final MatchId? currentMatchId;
   final DateTime createdAt;
 
+  /// Members still on the last match's results: they have not tapped Play
+  /// again yet (`ComeBack`). The next match is dealt without them.
+  final List<UserId> notBackIds;
+
+  /// Members whose app is not connected right now (closed, locked phone,
+  /// no network). The next match is dealt without them too.
+  final List<UserId> offlineIds;
+
+  /// Members who would get a card if the host started now.
+  List<UserId> get readyIds => [
+    for (final u in memberIds)
+      if (!notBackIds.contains(u) && !offlineIds.contains(u)) u,
+  ];
+
   Json toJson() => {
     'id': id,
     'inviteCode': inviteCode,
@@ -135,6 +151,8 @@ class Room {
     'memberNames': memberNames,
     'currentMatchId': currentMatchId,
     'createdAt': encodeTime(createdAt),
+    'notBackIds': notBackIds,
+    'offlineIds': offlineIds,
   };
 
   factory Room.fromJson(Json j) => Room(
@@ -150,5 +168,7 @@ class Room {
     },
     currentMatchId: j['currentMatchId'] as String?,
     createdAt: decodeTime(j['createdAt']),
+    notBackIds: decodeStrings(j['notBackIds']),
+    offlineIds: decodeStrings(j['offlineIds']),
   );
 }
