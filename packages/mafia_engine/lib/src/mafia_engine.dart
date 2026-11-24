@@ -72,6 +72,8 @@ class MafiaEngine implements GameEngine {
       NightKill() => _nightAction(state, action, now),
       NightHeal() => _nightAction(state, action, now),
       NightCheck() => _nightAction(state, action, now),
+      NightGuard() => _nightAction(state, action, now),
+      NightSleep() => _nightAction(state, action, now),
       CastVote() => _castVote(state, action, now),
       SkipPhase() => _skipPhase(state, action, now),
       SayLastWord() => _sayLastWord(state, action),
@@ -121,6 +123,8 @@ class MafiaEngine implements GameEngine {
       NightKill(:final targetId) => targetId,
       NightHeal(:final targetId) => targetId,
       NightCheck(:final targetId) => targetId,
+      NightGuard(:final targetId) => targetId,
+      NightSleep(:final targetId) => targetId,
       _ => throw StateError('not a night action: ${a.type}'),
     };
     final target = _player(s, targetId);
@@ -130,12 +134,36 @@ class MafiaEngine implements GameEngine {
     final role = s.roles[a.actorId]!;
     final mem = _memory(s);
     switch (a) {
+      case NightKill() when role == Role.maniac:
+        if (targetId == a.actorId) {
+          return const Rejected(RejectCodes.targetSelf);
+        }
       case NightKill():
         if (role.team != Team.mafia) {
           return const Rejected(RejectCodes.notYourRole);
         }
         if (s.roles[targetId]!.team == Team.mafia) {
           return const Rejected(RejectCodes.targetTeammate);
+        }
+      case NightGuard():
+        if (role != Role.bodyguard) {
+          return const Rejected(RejectCodes.notYourRole);
+        }
+        if (targetId == a.actorId) {
+          return const Rejected(RejectCodes.targetSelf);
+        }
+        if (targetId == mem.lastGuard) {
+          return const Rejected(RejectCodes.sameGuardTwice);
+        }
+      case NightSleep():
+        if (role != Role.hypnotist) {
+          return const Rejected(RejectCodes.notYourRole);
+        }
+        if (targetId == a.actorId) {
+          return const Rejected(RejectCodes.targetSelf);
+        }
+        if (targetId == mem.lastSleep) {
+          return const Rejected(RejectCodes.sameSleepTwice);
         }
       case NightHeal():
         if (role != Role.doctor) return const Rejected(RejectCodes.notYourRole);
@@ -178,9 +206,20 @@ class MafiaEngine implements GameEngine {
   bool _nightComplete(GameState s) {
     bool has(UserId id, String type) =>
         s.pendingNightActions.any((p) => p.actorId == id && p.type == type);
+    final mem = _memory(s);
     for (final p in s.public.alive) {
       final role = s.roles[p.userId]!;
-      if (role.team == Team.mafia && !has(p.userId, 'nightKill')) return false;
+      if (_kills(role) && !has(p.userId, 'nightKill')) return false;
+      if (role == Role.bodyguard &&
+          _hasTarget(s, p.userId, mem.lastGuard) &&
+          !has(p.userId, 'nightGuard')) {
+        return false;
+      }
+      if (role == Role.hypnotist &&
+          _hasTarget(s, p.userId, mem.lastSleep) &&
+          !has(p.userId, 'nightSleep')) {
+        return false;
+      }
       if ((role == Role.don || role == Role.detective) &&
           _canCheckAnyone(s, p.userId) &&
           !has(p.userId, 'nightCheck')) {
@@ -190,6 +229,16 @@ class MafiaEngine implements GameEngine {
     }
     return true;
   }
+
+  /// Roles that shoot at night: the Mafia team together, the Maniac alone.
+  static bool _kills(Role role) =>
+      role.team == Team.mafia || role == Role.maniac;
+
+  /// True when [me] has someone to pick other than themselves and [last]
+  /// (the Bodyguard and Hypnotist may not pick the same player twice in a
+  /// row).
+  bool _hasTarget(GameState s, UserId me, UserId? last) =>
+      s.public.alive.any((p) => p.userId != me && p.userId != last);
 
   /// False when a checker has already checked every player they may check,
   /// so the night does not wait on a pick they cannot make.
@@ -212,15 +261,32 @@ class MafiaEngine implements GameEngine {
     final round = pub.round;
     var mem = _memory(s);
     bool aliveId(UserId id) => _player(s, id)?.isAlive ?? false;
+    Role roleOf(UserId id) => s.roles[id]!;
+
+    // The Hypnotist goes first: whoever they put to sleep does nothing
+    // tonight, whatever they picked.
+    final sleep = s.pendingNightActions
+        .whereType<NightSleep>()
+        .where((a) => aliveId(a.actorId) && aliveId(a.targetId))
+        .lastOrNull;
+    final slept = sleep?.targetId;
+    bool acts(GameAction a) => aliveId(a.actorId) && a.actorId != slept;
+    final moves = [
+      for (final a in s.pendingNightActions)
+        if (acts(a)) a,
+    ];
 
     // Who the Mafia kill: the Don's pick if the Don picked, otherwise the
     // most-picked target, ties going to the pick of the lowest seat.
     final kills = [
-      for (final a in s.pendingNightActions)
-        if (a is NightKill && aliveId(a.actorId) && aliveId(a.targetId)) a,
+      for (final a in moves)
+        if (a is NightKill &&
+            roleOf(a.actorId).team == Team.mafia &&
+            aliveId(a.targetId))
+          a,
     ];
     UserId? killTarget;
-    final donKill = kills.where((a) => s.roles[a.actorId] == Role.don);
+    final donKill = kills.where((a) => roleOf(a.actorId) == Role.don);
     if (donKill.isNotEmpty) {
       killTarget = donKill.last.targetId;
     } else if (kills.isNotEmpty) {
@@ -238,16 +304,70 @@ class MafiaEngine implements GameEngine {
         );
       killTarget = bySeat.firstWhere((k) => tally[k.targetId] == top).targetId;
     }
-
-    final heal = s.pendingNightActions
-        .whereType<NightHeal>()
-        .where((a) => aliveId(a.actorId))
+    final maniacKill = moves
+        .whereType<NightKill>()
+        .where((a) => roleOf(a.actorId) == Role.maniac && aliveId(a.targetId))
         .lastOrNull;
-    final saved = heal != null && heal.targetId == killTarget;
+
+    final heal = moves.whereType<NightHeal>().lastOrNull;
+    final guard = moves.whereType<NightGuard>().lastOrNull;
+
+    // Each shot: the Doctor saves the target; else the Bodyguard steps in
+    // front of them (and the Doctor may have saved the Bodyguard); the
+    // Immortal shrugs a shot off.
+    StoryAttack shoot(List<UserId> shooters, UserId target, bool byManiac) {
+      if (heal?.targetId == target) {
+        return StoryAttack(
+          shooters: shooters,
+          target: target,
+          byManiac: byManiac,
+          outcome: ShotOutcome.healed,
+        );
+      }
+      final bodyguard =
+          guard != null && guard.targetId == target && guard.actorId != target
+          ? guard.actorId
+          : null;
+      final hit = bodyguard ?? target;
+      return StoryAttack(
+        shooters: shooters,
+        target: target,
+        byManiac: byManiac,
+        bodyguardId: bodyguard,
+        outcome: heal?.targetId == hit
+            ? ShotOutcome.healed
+            : roleOf(hit) == Role.immortal
+            ? ShotOutcome.immortal
+            : ShotOutcome.died,
+      );
+    }
+
+    final attacks = [
+      if (killTarget != null)
+        shoot(
+          [
+            for (final k in kills)
+              if (k.targetId == killTarget) k.actorId,
+          ],
+          killTarget,
+          false,
+        ),
+      if (maniacKill != null)
+        shoot([maniacKill.actorId], maniacKill.targetId, true),
+    ];
+    final deaths = <UserId>{
+      for (final a in attacks)
+        if (a.outcome == ShotOutcome.died) a.hit,
+    }.toList();
+    final mafiaShot = killTarget == null ? null : attacks.first;
+
     mem = mem.copyWith(
       lastHeal: () => heal?.targetId,
       selfHealUsed:
           mem.selfHealUsed || (heal != null && heal.targetId == heal.actorId),
+      lastGuard: () => guard?.targetId,
+      lastSleep: () => slept,
+      asleep: () => slept,
     );
 
     // Checks resolve even if the checker is killed tonight.
@@ -257,10 +377,10 @@ class MafiaEngine implements GameEngine {
     final donChecks = {
       for (final e in mem.donChecks.entries) e.key: {...e.value},
     };
-    for (final c in s.pendingNightActions.whereType<NightCheck>()) {
-      if (!aliveId(c.actorId)) continue;
-      final targetRole = s.roles[c.targetId]!;
-      if (s.roles[c.actorId] == Role.don) {
+    final madeChecks = moves.whereType<NightCheck>().toList();
+    for (final c in madeChecks) {
+      final targetRole = roleOf(c.targetId);
+      if (roleOf(c.actorId) == Role.don) {
         (donChecks[c.actorId] ??= {})[c.targetId] =
             targetRole == Role.detective;
       } else {
@@ -276,43 +396,48 @@ class MafiaEngine implements GameEngine {
         StoryNight(
           round: round,
           target: killTarget,
-          shooters: [
-            for (final k in kills)
-              if (k.targetId == killTarget) k.actorId,
-          ],
+          shooters: mafiaShot?.shooters ?? const [],
           doctorId: heal?.actorId,
           healed: heal?.targetId,
-          saved: saved,
+          saved:
+              mafiaShot != null &&
+              mafiaShot.outcome == ShotOutcome.healed &&
+              mafiaShot.bodyguardId == null,
           checks: [
-            for (final c in s.pendingNightActions.whereType<NightCheck>())
-              if (aliveId(c.actorId))
-                StoryCheck(
-                  checkerId: c.actorId,
-                  targetId: c.targetId,
-                  byDon: s.roles[c.actorId] == Role.don,
-                  found: s.roles[c.actorId] == Role.don
-                      ? s.roles[c.targetId] == Role.detective
-                      : s.roles[c.targetId]!.team == Team.mafia,
-                ),
+            for (final c in madeChecks)
+              StoryCheck(
+                checkerId: c.actorId,
+                targetId: c.targetId,
+                byDon: roleOf(c.actorId) == Role.don,
+                found: roleOf(c.actorId) == Role.don
+                    ? roleOf(c.targetId) == Role.detective
+                    : roleOf(c.targetId).team == Team.mafia,
+              ),
           ],
+          attacks: attacks,
+          bodyguardId: guard?.actorId,
+          guarded: guard?.targetId,
+          hypnotistId: sleep?.actorId,
+          slept: slept,
         ),
       ],
     );
 
     var players = pub.players;
     final log = [...pub.log];
-    if (killTarget != null && !saved) {
-      players = _eliminate(players, killTarget);
+    for (final dead in deaths) {
+      players = _eliminate(players, dead);
       log.add(
         PublicEvent(
           round: round,
           phase: GamePhase.night,
           message: EventKeys.eliminated,
-          userId: killTarget,
+          userId: dead,
           cause: EliminationCause.killedAtNight,
         ),
       );
-    } else {
+    }
+    if (deaths.isEmpty) {
       log.add(
         PublicEvent(
           round: round,
@@ -330,9 +455,15 @@ class MafiaEngine implements GameEngine {
     );
     final winner = _winner(afterNight);
     if (winner != null) return _end(afterNight, winner, now);
-    if (killTarget != null && !saved) {
+    if (deaths.isNotEmpty) {
       return Accepted(
-        _startLastWord(afterNight, killTarget, then: GamePhase.day, now: now),
+        _startLastWord(
+          afterNight,
+          deaths.first,
+          then: GamePhase.day,
+          now: now,
+          queue: deaths.skip(1).toList(),
+        ),
       );
     }
     return Accepted(_startDay(afterNight, now));
@@ -444,6 +575,7 @@ class MafiaEngine implements GameEngine {
     UserId speaker, {
     required GamePhase then,
     required DateTime now,
+    List<UserId> queue = const [],
   }) => _copy(
     s,
     public: _pub(
@@ -453,15 +585,31 @@ class MafiaEngine implements GameEngine {
       votes: const {},
       lastWordBy: () => speaker,
     ),
-    memory: _memory(s).copyWith(afterLastWord: () => then),
+    memory: _memory(s)
+        .copyWith(afterLastWord: () => then, lastWordQueue: queue),
   );
 
-  /// Moves on to the phase the last word interrupted.
+  /// Gives the next player killed the same night their last word, or moves
+  /// on to the phase the last word interrupted.
   GameState _endLastWord(GameState s, DateTime now) {
-    final then = _memory(s).afterLastWord;
+    final mem = _memory(s);
+    final then = mem.afterLastWord;
+    final queue = [
+      for (final id in mem.lastWordQueue)
+        if (_player(s, id)?.isConnected ?? false) id,
+    ];
+    if (queue.isNotEmpty && then != null) {
+      return _startLastWord(
+        s,
+        queue.first,
+        then: then,
+        now: now,
+        queue: queue.skip(1).toList(),
+      );
+    }
     final cleared = _copy(
       s,
-      memory: _memory(s).copyWith(afterLastWord: () => null),
+      memory: mem.copyWith(afterLastWord: () => null, lastWordQueue: const []),
     );
     return then == GamePhase.night
         ? _startNight(cleared, now)
@@ -661,6 +809,7 @@ class MafiaEngine implements GameEngine {
   GameState _startNight(GameState s, DateTime now) {
     final round = s.public.round + 1;
     return _copy(
+      memory: _memory(s).copyWith(asleep: () => null),
       s,
       public: _pub(
         s.public,
@@ -699,16 +848,26 @@ class MafiaEngine implements GameEngine {
     ),
   );
 
-  /// Town wins when no Mafia is left. Mafia wins once they are at least as
-  /// many as the living town.
+  /// The Maniac wins once they are one of the last two players alive.
+  /// Otherwise the town wins when no Mafia and no Maniac is left, and the
+  /// Mafia win once they are at least as many as everyone else alive.
   Team? _winner(GameState s) {
     var mafia = 0;
     var town = 0;
+    var maniac = 0;
     for (final p in s.public.alive) {
-      s.roles[p.userId]!.team == Team.mafia ? mafia++ : town++;
+      switch (s.roles[p.userId]!.team) {
+        case Team.mafia:
+          mafia++;
+        case Team.town:
+          town++;
+        case Team.maniac:
+          maniac++;
+      }
     }
-    if (mafia == 0) return Team.town;
-    if (mafia >= town) return Team.mafia;
+    if (maniac > 0 && mafia + town + maniac <= 2) return Team.maniac;
+    if (mafia == 0 && maniac == 0) return Team.town;
+    if (mafia > 0 && mafia >= town + maniac) return Team.mafia;
     return null;
   }
 
@@ -729,9 +888,11 @@ class MafiaEngine implements GameEngine {
           PublicEvent(
             round: pub.round,
             phase: GamePhase.ended,
-            message: winner == Team.town
-                ? EventKeys.townWon
-                : EventKeys.mafiaWon,
+            message: switch (winner) {
+              Team.town => EventKeys.townWon,
+              Team.mafia => EventKeys.mafiaWon,
+              Team.maniac => EventKeys.maniacWon,
+            },
           ),
         ],
       ),
@@ -805,6 +966,7 @@ class MafiaEngine implements GameEngine {
           ? mem.donChecks[userId] ?? const {}
           : const {},
       allowedActions: _allowedActions(state, me, role),
+      wasAsleep: mem.asleep == userId && state.public.phase != GamePhase.night,
     );
   }
 
@@ -817,9 +979,14 @@ class MafiaEngine implements GameEngine {
       case GamePhase.day when me.isAlive:
         return const ['skipPhase'];
       case GamePhase.night when me.isAlive:
+        final mem = _memory(s);
         return [
-          if (role.team == Team.mafia) 'nightKill',
+          if (_kills(role)) 'nightKill',
           if (role == Role.doctor) 'nightHeal',
+          if (role == Role.bodyguard && _hasTarget(s, me.userId, mem.lastGuard))
+            'nightGuard',
+          if (role == Role.hypnotist && _hasTarget(s, me.userId, mem.lastSleep))
+            'nightSleep',
           if ((role == Role.detective || role == Role.don) &&
               _canCheckAnyone(s, me.userId))
             'nightCheck',
@@ -852,6 +1019,8 @@ class MafiaEngine implements GameEngine {
     NightKill(:final targetId) => targetId,
     NightHeal(:final targetId) => targetId,
     NightCheck(:final targetId) => targetId,
+    NightGuard(:final targetId) => targetId,
+    NightSleep(:final targetId) => targetId,
     _ => null,
   };
 

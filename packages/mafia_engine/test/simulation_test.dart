@@ -11,15 +11,16 @@ import 'helpers.dart';
 /// state as JSON after every step the way the server would.
 ({GameState state, MatchResult result, List<GameAction> actions}) playOut(
   int seed,
-  int players,
-) {
+  int players, {
+  Map<Role, int>? roles,
+}) {
   final rnd = Random(seed);
   var now = fixtureNow;
   var state = engine.newMatch(
     roomId: 'r',
     matchId: 'm$seed',
     players: samplePlayers(players),
-    settings: const RoomSettings(stake: 50),
+    settings: RoomSettings(stake: 50, roleCounts: roles),
     seed: seed,
     now: now,
   );
@@ -40,6 +41,8 @@ import 'helpers.dart';
           'nightKill' => NightKill(actorId: id, targetId: target),
           'nightHeal' => NightHeal(actorId: id, targetId: target),
           'nightCheck' => NightCheck(actorId: id, targetId: target),
+          'nightGuard' => NightGuard(actorId: id, targetId: target),
+          'nightSleep' => NightSleep(actorId: id, targetId: target),
           'castVote' => CastVote(
             actorId: id,
             targetId: rnd.nextInt(5) == 0 ? null : target,
@@ -75,36 +78,37 @@ import 'helpers.dart';
   return (state: state, result: result, actions: actions);
 }
 
+/// As many of the newer roles as fit a fair game for [players].
+Map<Role, int> withNewRoles(int players) {
+  final roles = <Role, int>{Role.mafia: 1};
+  for (final r in [
+    Role.maniac,
+    Role.detective,
+    Role.doctor,
+    Role.bodyguard,
+    Role.hypnotist,
+    Role.immortal,
+    Role.don,
+  ]) {
+    final next = {...roles, r: 1};
+    if (RoleSetup.check(players, next) == null) roles[r] = 1;
+  }
+  return roles;
+}
+
 void main() {
-  test('random matches always end with a fair result', () {
-    for (var seed = 0; seed < 300; seed++) {
-      final players = 4 + seed % 9;
-      final (:state, :result, actions: _) = playOut(seed, players);
-      final everyone = state.roles.keys.toSet();
+  for (final newRoles in [false, true]) {
+    test(
+      newRoles
+          ? 'random matches with the newer roles end with a fair result'
+          : 'random matches always end with a fair result',
+      () => checkFairEnds(newRoles: newRoles),
+    );
+  }
 
-      expect(state.public.phase, GamePhase.ended);
-      expect(result.winningTeam, state.public.winner);
-      expect({...result.winners, ...result.losers}, everyone);
-      // Every card is revealed at the end, and matches the deal.
-      expect(result.roles, state.roles);
-      expect(
-        result.winners.toSet().intersection(result.losers.toSet()),
-        isEmpty,
-      );
-      expect(result.losers, containsAll(result.forfeited));
-      for (final w in result.winners) {
-        expect(state.roles[w]!.team, result.winningTeam);
-      }
-
-      final alive = state.public.alive.map((p) => state.roles[p.userId]!.team);
-      final mafia = alive.where((t) => t == Team.mafia).length;
-      final town = alive.length - mafia;
-      if (result.winningTeam == Team.town) {
-        expect(mafia, 0);
-      } else {
-        expect(mafia, greaterThanOrEqualTo(town));
-      }
-    }
+  test('the newer roles fit from 5 players', () {
+    expect(withNewRoles(5), contains(Role.maniac));
+    expect(withNewRoles(12).length, 8);
   });
 
   test('a match replays exactly from its seed and actions', () {
@@ -130,9 +134,52 @@ void main() {
     final (:state, result: _, actions: _) = playOut(5, 12);
     final public = jsonEncode(state.public.toJson());
     expect(public, isNot(contains('"role"')));
-    // "mafia" is also a team name (the winner), so check the others.
-    for (final role in Role.values.where((r) => r != Role.mafia)) {
+    // "mafia" and "maniac" are also team names (the winner), so check the
+    // others.
+    for (final role in Role.values.where(
+      (r) => r != Role.mafia && r != Role.maniac,
+    )) {
       expect(public, isNot(contains('"${role.name}"')));
     }
   });
+}
+
+void checkFairEnds({required bool newRoles}) {
+  for (var seed = 0; seed < 300; seed++) {
+    final players = (newRoles ? 5 : 4) + seed % (newRoles ? 8 : 9);
+    final (:state, :result, actions: _) = playOut(
+      seed,
+      players,
+      roles: newRoles ? withNewRoles(players) : null,
+    );
+    final everyone = state.roles.keys.toSet();
+
+    expect(state.public.phase, GamePhase.ended);
+    expect(result.winningTeam, state.public.winner);
+    expect({...result.winners, ...result.losers}, everyone);
+    // Every card is revealed at the end, and matches the deal.
+    expect(result.roles, state.roles);
+    expect(result.winners.toSet().intersection(result.losers.toSet()), isEmpty);
+    expect(result.losers, containsAll(result.forfeited));
+    for (final w in result.winners) {
+      expect(state.roles[w]!.team, result.winningTeam);
+    }
+
+    final alive = state.public.alive.map((p) => state.roles[p.userId]!.team);
+    final mafia = alive.where((t) => t == Team.mafia).length;
+    final town =
+        alive.length - mafia - alive.where((t) => t == Team.maniac).length;
+    final maniac = alive.where((t) => t == Team.maniac).length;
+    switch (result.winningTeam) {
+      case Team.town:
+        expect(mafia + maniac, 0);
+      case Team.mafia:
+        expect(mafia, greaterThanOrEqualTo(town));
+      case Team.maniac:
+        expect(maniac, 1);
+        expect(alive.length, lessThanOrEqualTo(2));
+      case null:
+        fail('no winner');
+    }
+  }
 }

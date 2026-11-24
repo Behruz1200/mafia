@@ -52,6 +52,11 @@ class StoryNight {
     this.healed,
     this.saved = false,
     this.checks = const [],
+    this.attacks = const [],
+    this.bodyguardId,
+    this.guarded,
+    this.hypnotistId,
+    this.slept,
   });
 
   final int round;
@@ -72,6 +77,20 @@ class StoryNight {
   /// The Detective's and Don's checks, in the order they were made.
   final List<StoryCheck> checks;
 
+  /// Every shot tonight and how it ended: the Mafia's first, then the
+  /// Maniac's. Empty in stories from before the Maniac existed; there
+  /// [target], [shooters] and [saved] tell the Mafia's shot.
+  final List<StoryAttack> attacks;
+
+  /// The Bodyguard who guarded someone tonight, and who.
+  final UserId? bodyguardId;
+  final UserId? guarded;
+
+  /// The Hypnotist who put someone to sleep tonight, and who. That
+  /// player's night move did nothing.
+  final UserId? hypnotistId;
+  final UserId? slept;
+
   Json toJson() => {
     'round': round,
     'target': target,
@@ -80,6 +99,11 @@ class StoryNight {
     'healed': healed,
     'saved': saved,
     'checks': [for (final c in checks) c.toJson()],
+    'attacks': [for (final a in attacks) a.toJson()],
+    'bodyguardId': bodyguardId,
+    'guarded': guarded,
+    'hypnotistId': hypnotistId,
+    'slept': slept,
   };
 
   factory StoryNight.fromJson(Json j) => StoryNight(
@@ -90,6 +114,62 @@ class StoryNight {
     healed: j['healed'] as String?,
     saved: j['saved'] as bool? ?? false,
     checks: decodeList(j['checks'], StoryCheck.fromJson),
+    attacks: decodeList(j['attacks'], StoryAttack.fromJson),
+    bodyguardId: j['bodyguardId'] as String?,
+    guarded: j['guarded'] as String?,
+    hypnotistId: j['hypnotistId'] as String?,
+    slept: j['slept'] as String?,
+  );
+}
+
+/// How a night shot ended.
+enum ShotOutcome {
+  /// The player hit (the target, or the Bodyguard in their place) died.
+  died,
+
+  /// The Doctor protected the player hit.
+  healed,
+
+  /// The player hit is the Immortal and shrugged it off.
+  immortal,
+}
+
+/// One shot in the night: by the Mafia or by the Maniac.
+class StoryAttack {
+  const StoryAttack({
+    required this.shooters,
+    required this.target,
+    required this.outcome,
+    this.byManiac = false,
+    this.bodyguardId,
+  });
+
+  /// Who fired: the Mafia members who picked [target], or the Maniac.
+  final List<UserId> shooters;
+  final UserId target;
+  final bool byManiac;
+
+  /// Set when the Bodyguard stepped in front of [target] and took the shot.
+  final UserId? bodyguardId;
+
+  /// Who the shot actually hit.
+  UserId get hit => bodyguardId ?? target;
+  final ShotOutcome outcome;
+
+  Json toJson() => {
+    'shooters': shooters,
+    'target': target,
+    'byManiac': byManiac,
+    'bodyguardId': bodyguardId,
+    'outcome': outcome.name,
+  };
+
+  factory StoryAttack.fromJson(Json j) => StoryAttack(
+    shooters: decodeStrings(j['shooters']),
+    target: j['target']! as String,
+    byManiac: j['byManiac'] as bool? ?? false,
+    bodyguardId: j['bodyguardId'] as String?,
+    outcome: ShotOutcome.values.asNameMap()[j['outcome']] ?? ShotOutcome.died,
   );
 }
 

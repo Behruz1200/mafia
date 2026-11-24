@@ -19,6 +19,7 @@ export 'src/models/match_story.dart';
 export 'src/models/phase.dart';
 export 'src/models/player.dart';
 export 'src/models/role.dart';
+export 'src/models/role_setup.dart';
 export 'src/models/room.dart';
 export 'src/models/wallet.dart';
 export 'src/policy/region_policy.dart';

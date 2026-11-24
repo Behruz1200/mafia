@@ -28,6 +28,8 @@ sealed class GameAction {
       'nightKill' => NightKill(actorId: actor, targetId: target!),
       'nightHeal' => NightHeal(actorId: actor, targetId: target!),
       'nightCheck' => NightCheck(actorId: actor, targetId: target!),
+      'nightGuard' => NightGuard(actorId: actor, targetId: target!),
+      'nightSleep' => NightSleep(actorId: actor, targetId: target!),
       'castVote' => CastVote(actorId: actor, targetId: target),
       'skipPhase' => SkipPhase(
         actorId: actor,
@@ -48,7 +50,8 @@ final class StartMatch extends GameAction {
   String get type => 'startMatch';
 }
 
-/// Mafia team's pick for the night (the Don's pick wins on a split).
+/// Mafia team's pick for the night (the Don's pick wins on a split). The
+/// Maniac sends it too, for their own kill.
 final class NightKill extends GameAction {
   const NightKill({required super.actorId, required this.targetId});
   final UserId targetId;
@@ -74,6 +77,28 @@ final class NightCheck extends GameAction {
   final UserId targetId;
   @override
   String get type => 'nightCheck';
+  @override
+  Json _fields() => {'targetId': targetId};
+}
+
+/// Bodyguard guards one player for the night: if that player is shot, the
+/// Bodyguard dies instead.
+final class NightGuard extends GameAction {
+  const NightGuard({required super.actorId, required this.targetId});
+  final UserId targetId;
+  @override
+  String get type => 'nightGuard';
+  @override
+  Json _fields() => {'targetId': targetId};
+}
+
+/// Hypnotist puts one player to sleep: their night power does nothing
+/// tonight.
+final class NightSleep extends GameAction {
+  const NightSleep({required super.actorId, required this.targetId});
+  final UserId targetId;
+  @override
+  String get type => 'nightSleep';
   @override
   Json _fields() => {'targetId': targetId};
 }

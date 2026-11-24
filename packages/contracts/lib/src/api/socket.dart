@@ -4,6 +4,7 @@ import '../models/chat.dart';
 import '../models/game_action.dart';
 import '../models/game_state.dart';
 import '../models/match_result.dart';
+import '../models/role.dart';
 import '../models/room.dart';
 import '../models/wallet.dart';
 
@@ -22,6 +23,12 @@ sealed class ClientMessage {
     ),
     'chat' => SendChat(j['roomId']! as String, j['text']! as String),
     'react' => SendReaction(j['roomId']! as String, j['emoji']! as String),
+    'setRoles' => SetRoomRoles(
+      j['roomId']! as String,
+      (j['roleCounts'] as Json?)?.map(
+        (k, v) => MapEntry(Role.values.byName(k), v! as int),
+      ),
+    ),
     'ping' => const Ping(),
     final t => throw FormatException('Unknown ClientMessage: $t'),
   };
@@ -72,6 +79,25 @@ final class SendReaction extends ClientMessage {
   final String emoji;
   @override
   Json toJson() => {'t': 'react', 'roomId': roomId, 'emoji': emoji};
+}
+
+/// The host picks the roles for the next match, in the waiting room.
+/// [roleCounts] holds every role but Civilian (Civilians fill the other
+/// seats); null goes back to the standard deal. The server checks the setup
+/// is fair for the seats it could have (`RoleSetup.check`), then sends
+/// everyone the room with the new `RoomSettings.roleCounts`. Refused with
+/// `not_host`, `room_in_match`, `roles_locked` (quick-match rooms keep the
+/// standard deal) or a `RoleSetupProblem.code`.
+final class SetRoomRoles extends ClientMessage {
+  const SetRoomRoles(this.roomId, this.roleCounts);
+  final String roomId;
+  final Map<Role, int>? roleCounts;
+  @override
+  Json toJson() => {
+    't': 'setRoles',
+    'roomId': roomId,
+    'roleCounts': roleCounts?.map((k, v) => MapEntry(k.name, v)),
+  };
 }
 
 final class Ping extends ClientMessage {
