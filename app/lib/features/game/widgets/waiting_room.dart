@@ -161,49 +161,128 @@ class WaitingRoom extends StatelessWidget {
           ),
         ),
         Container(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-          decoration: const BoxDecoration(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+          decoration: BoxDecoration(
             color: Palette.surfaceSheet,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+            // Lifts the bar off the list, so what scrolls under it reads
+            // as more to scroll to and not as a cut-off card.
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.45),
+                blurRadius: 24,
+                offset: const Offset(0, -6),
+              ),
+            ],
           ),
           child: SafeArea(
             top: false,
+            minimum: const EdgeInsets.only(bottom: 4),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: 10,
               children: [
-                CallControls(roomId: room.id),
                 if (!enough)
-                  Text(
-                    t.gameNeedMorePlayers(room.settings.minPlayers),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: GameStyle.muted),
+                  _Note(
+                    icon: Icons.group_add_rounded,
+                    text: t.gameNeedMorePlayers(room.settings.minPlayers),
                   ),
-                if (isHost)
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: enough
-                          ? GameStyle.glow(GameStyle.crimson)
-                          : null,
-                    ),
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(56),
-                      ),
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: Text(t.gameStart),
-                      onPressed: enough ? onStart : null,
-                    ),
-                  )
-                else
-                  Text(
-                    t.gameWaitingForHost,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: GameStyle.muted),
-                  ),
+                // Camera and mic on the left, Start (or the wait) beside
+                // them: one row, so nothing floats alone on a small phone.
+                CallControls(
+                  roomId: room.id,
+                  trailing: isHost
+                      ? DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: enough
+                                ? GameStyle.glow(GameStyle.crimson)
+                                : null,
+                          ),
+                          child: FilledButton.icon(
+                            key: const ValueKey('start-game'),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(52),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                            ),
+                            icon: const Icon(Icons.play_arrow_rounded),
+                            label: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(t.gameStart, maxLines: 1),
+                            ),
+                            onPressed: enough ? onStart : null,
+                          ),
+                        )
+                      : Container(
+                          height: 52,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Palette.surface,
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            spacing: 8,
+                            children: [
+                              const Icon(
+                                Icons.hourglass_top_rounded,
+                                size: 18,
+                                color: GameStyle.muted,
+                              ),
+                              Flexible(
+                                child: Text(
+                                  t.gameWaitingForHost,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: GameStyle.muted,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                ),
               ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One muted line with an icon, above the bottom bar's buttons.
+class _Note extends StatelessWidget {
+  const _Note({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      spacing: 8,
+      children: [
+        Icon(icon, size: 18, color: GameStyle.muted),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: GameStyle.muted,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
             ),
           ),
         ),
