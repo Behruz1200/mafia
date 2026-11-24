@@ -1,5 +1,6 @@
 import 'package:contracts/contracts.dart';
 import 'package:contracts/testing.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mafia_app/features/game/game_screen.dart';
 import 'package:mafia_app/features/game/ui/noir_art.dart';
@@ -49,6 +50,36 @@ void main() {
     expect(find.text('K7QF2'), findsOneWidget);
     expect(find.text('8 of 12 players'), findsOneWidget);
     expect(find.text('Stake: 100 coins'), findsOneWidget);
+    // The code is one small row at the top; tapping it copies it.
+    expect(
+      tester.getSize(find.byKey(const ValueKey('room-bar'))).height,
+      lessThan(80),
+    );
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('copy-code')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(copied, 'K7QF2');
+    expect(find.text('Code copied'), findsOneWidget);
+    tester
+        .state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger))
+        .removeCurrentSnackBar();
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Start the game'));
     await tester.pump();

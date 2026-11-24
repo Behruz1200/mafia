@@ -97,82 +97,19 @@ class WaitingRoom extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
             children: [
-              GamePanel(
-                padding: const EdgeInsets.fromLTRB(20, 18, 14, 18),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: 6,
-                        children: [
-                          Text(
-                            t.gameInviteCode.toUpperCase(),
-                            style: const TextStyle(
-                              color: GameStyle.muted,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 11,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          Text(
-                            room.inviteCode,
-                            style: GameStyle.display(
-                              32,
-                              color: GameStyle.gold,
-                            ).copyWith(letterSpacing: 5),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: t.gameCodeCopied,
-                      style: IconButton.styleFrom(
-                        fixedSize: const Size(52, 52),
-                        backgroundColor: GameStyle.gold,
-                        foregroundColor: GameStyle.felt,
-                      ),
-                      icon: const Icon(Icons.copy_rounded),
-                      onPressed: () async {
-                        await Clipboard.setData(
-                          ClipboardData(text: room.inviteCode),
-                        );
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(t.gameCodeCopied)),
-                          );
-                        }
-                      },
-                    ),
-                  ],
+              // Small, so the camera seats get the room: friends at the
+              // table already have the code, newcomers can still copy it.
+              _RoomBar(
+                code: room.inviteCode,
+                players: t.gamePlayersCount(
+                  seated.length,
+                  room.settings.maxPlayers,
                 ),
+                stake: stake == 0
+                    ? t.lobbyStakeFree
+                    : t.gameStakeValue(t.coins(stake)),
               ),
               const SizedBox(height: 12),
-              Row(
-                spacing: 10,
-                children: [
-                  Expanded(
-                    child: _Fact(
-                      icon: Icons.groups_rounded,
-                      color: GameStyle.town,
-                      text: t.gamePlayersCount(
-                        seated.length,
-                        room.settings.maxPlayers,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: _Fact(
-                      icon: Icons.toll_rounded,
-                      color: GameStyle.gold,
-                      text: stake == 0
-                          ? t.lobbyStakeFree
-                          : t.gameStakeValue(t.coins(stake)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
               // Cameras work here too, so friends can say hello and check
               // their camera and mic before the match.
               SeatReactions(
@@ -430,9 +367,95 @@ class _Note extends StatelessWidget {
   }
 }
 
-/// A small fact about the room: an icon on a tint and a line of text.
-class _Fact extends StatelessWidget {
-  const _Fact({required this.icon, required this.color, required this.text});
+/// The invite code with a copy button, and how many are seated and the
+/// stake, in one short row.
+class _RoomBar extends StatelessWidget {
+  const _RoomBar({
+    required this.code,
+    required this.players,
+    required this.stake,
+  });
+
+  final String code;
+  final String players;
+  final String stake;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    return GamePanel(
+      key: const ValueKey('room-bar'),
+      padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+      child: Row(
+        spacing: 10,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              spacing: 4,
+              children: [
+                _Line(
+                  icon: Icons.groups_rounded,
+                  color: GameStyle.town,
+                  text: players,
+                ),
+                _Line(
+                  icon: Icons.toll_rounded,
+                  color: GameStyle.gold,
+                  text: stake,
+                ),
+              ],
+            ),
+          ),
+          Tooltip(
+            message: t.gameInviteCode,
+            child: Material(
+              color: GameStyle.gold.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(14),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                key: const ValueKey('copy-code'),
+                onTap: () async {
+                  await Clipboard.setData(ClipboardData(text: code));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(t.gameCodeCopied)));
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 8,
+                    children: [
+                      Text(
+                        code,
+                        style: GameStyle.display(
+                          20,
+                          color: GameStyle.gold,
+                        ).copyWith(letterSpacing: 3),
+                      ),
+                      const Icon(
+                        Icons.copy_rounded,
+                        size: 18,
+                        color: GameStyle.gold,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Line extends StatelessWidget {
+  const _Line({required this.icon, required this.color, required this.text});
 
   final IconData icon;
   final Color color;
@@ -440,22 +463,19 @@ class _Fact extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GamePanel(
-      padding: const EdgeInsets.all(10),
-      child: Row(
-        spacing: 10,
-        children: [
-          IconBlob(icon: icon, color: color, size: 36),
-          Expanded(
-            child: Text(
-              text,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-            ),
+    return Row(
+      spacing: 6,
+      children: [
+        Icon(icon, size: 16, color: color),
+        Flexible(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
