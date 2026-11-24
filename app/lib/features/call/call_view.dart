@@ -41,9 +41,15 @@ final _gameProvider = StreamProvider.autoDispose
 ///    camera or mic is off, and has the camera and mic toggles.
 ///  * [SeatVideo] shows one player's camera, or a placeholder.
 class CallControls extends ConsumerStatefulWidget {
-  const CallControls({super.key, this.roomId});
+  const CallControls({super.key, this.roomId, this.trailing});
 
   final RoomId? roomId;
+
+  /// When set, the camera and mic sit on the left of one row with this
+  /// after them (the waiting room's Start button), and the status line
+  /// moves above the row. Without it the status line is on the left and
+  /// the toggles on the right.
+  final Widget? trailing;
 
   @override
   ConsumerState<CallControls> createState() => _CallControlsState();
@@ -117,69 +123,88 @@ class _CallControlsState extends ConsumerState<CallControls> {
       await call.setMic(on: !local.micOn);
     }
 
+    final status = banner == null
+        ? null
+        : GestureDetector(
+            key: const ValueKey('call-banner'),
+            behavior: HitTestBehavior.opaque,
+            // Browsers play sound only after a tap; this is that tap.
+            onTap: call is LiveKitCallController && soundTap
+                ? call.startAudio
+                : null,
+            child: Row(
+              spacing: 8,
+              children: [
+                Icon(
+                  soundTap
+                      ? Icons.volume_up_rounded
+                      : mafiaCall
+                      ? Icons.lock_rounded
+                      : game?.phase == GamePhase.night
+                      ? Icons.bedtime_rounded
+                      : Icons.info_outline_rounded,
+                  size: 18,
+                  color: soundTap || mafiaCall ? Palette.accent : Palette.muted,
+                ),
+                Expanded(
+                  child: Text(
+                    banner,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: soundTap || mafiaCall
+                          ? Palette.text
+                          : Palette.muted,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+    final camera = _toggle(
+      key: const ValueKey('call-camera'),
+      on: local.cameraOn,
+      iconOn: Icons.videocam_rounded,
+      iconOff: Icons.videocam_off_rounded,
+      tooltip: local.cameraOn ? t.callTurnCameraOff : t.callTurnCameraOn,
+      onPressed: local.canPublish ? toggleCamera : null,
+    );
+    final mic = _toggle(
+      key: const ValueKey('call-mic'),
+      on: local.micOn,
+      iconOn: Icons.mic_rounded,
+      iconOff: Icons.mic_off_rounded,
+      tooltip: local.micOn ? t.callTurnMicOff : t.callTurnMicOn,
+      onPressed: local.canPublish ? toggleMic : null,
+    );
+
+    final trailing = widget.trailing;
+    if (trailing != null) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 10,
+        children: [
+          ?status,
+          Row(
+            spacing: 10,
+            children: [
+              camera,
+              mic,
+              Expanded(child: trailing),
+            ],
+          ),
+        ],
+      );
+    }
     return Row(
       spacing: 10,
       children: [
-        Expanded(
-          child: banner == null
-              ? const SizedBox.shrink()
-              : GestureDetector(
-                  key: const ValueKey('call-banner'),
-                  behavior: HitTestBehavior.opaque,
-                  // Browsers play sound only after a tap; this is that tap.
-                  onTap: call is LiveKitCallController && soundTap
-                      ? call.startAudio
-                      : null,
-                  child: Row(
-                    spacing: 8,
-                    children: [
-                      Icon(
-                        soundTap
-                            ? Icons.volume_up_rounded
-                            : mafiaCall
-                            ? Icons.lock_rounded
-                            : game?.phase == GamePhase.night
-                            ? Icons.bedtime_rounded
-                            : Icons.info_outline_rounded,
-                        size: 18,
-                        color: soundTap || mafiaCall
-                            ? Palette.accent
-                            : Palette.muted,
-                      ),
-                      Expanded(
-                        child: Text(
-                          banner,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: soundTap || mafiaCall
-                                ? Palette.text
-                                : Palette.muted,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-        ),
-        _toggle(
-          key: const ValueKey('call-camera'),
-          on: local.cameraOn,
-          iconOn: Icons.videocam_rounded,
-          iconOff: Icons.videocam_off_rounded,
-          tooltip: local.cameraOn ? t.callTurnCameraOff : t.callTurnCameraOn,
-          onPressed: local.canPublish ? toggleCamera : null,
-        ),
-        _toggle(
-          key: const ValueKey('call-mic'),
-          on: local.micOn,
-          iconOn: Icons.mic_rounded,
-          iconOff: Icons.mic_off_rounded,
-          tooltip: local.micOn ? t.callTurnMicOff : t.callTurnMicOn,
-          onPressed: local.canPublish ? toggleMic : null,
-        ),
+        Expanded(child: status ?? const SizedBox.shrink()),
+        camera,
+        mic,
       ],
     );
   }

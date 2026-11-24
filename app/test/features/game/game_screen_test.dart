@@ -307,6 +307,18 @@ void main() {
 
     expect(find.byKey(const ValueKey('call-camera')), findsOneWidget);
     expect(find.byKey(const ValueKey('call-mic')), findsOneWidget);
+    // Camera and mic sit on the left of one row with Start or the wait,
+    // not alone on the right of an empty row.
+    final camera = tester.getCenter(find.byKey(const ValueKey('call-camera')));
+    final mic = tester.getCenter(find.byKey(const ValueKey('call-mic')));
+    final start = find.byKey(const ValueKey('start-game'));
+    final beside = start.evaluate().isNotEmpty
+        ? tester.getCenter(start)
+        : tester.getCenter(find.text('The host will start the game'));
+    expect(camera.dy, mic.dy);
+    expect(beside.dy, moreOrLessEquals(camera.dy, epsilon: 1));
+    expect(camera.dx, lessThan(mic.dx));
+    expect(mic.dx, lessThan(beside.dx));
     await tester.tap(find.byKey(const ValueKey('refresh-button')));
     await tester.pumpAndSettle();
     expect(find.text('Refreshed'), findsOneWidget);
