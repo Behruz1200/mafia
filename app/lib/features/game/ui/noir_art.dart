@@ -249,28 +249,6 @@ List<Rect> paintSkyline(
   return windows;
 }
 
-/// Thin slanted rain streaks.
-void paintRain(
-  Canvas canvas,
-  Size size, {
-  int seed = 3,
-  int count = 60,
-  Color color = const Color(0xFFFFD9E2),
-  double opacity = 0.3,
-}) {
-  final r = _Rng(seed);
-  final p = Paint()..strokeWidth = 1;
-  // About one streak per 1,800 square points, so big areas are as rainy
-  // as small ones.
-  final n = max(count, (size.width * size.height / 1800).round());
-  for (var i = 0; i < n; i++) {
-    final x = r() * (size.width + 40) - 20, y = r() * size.height;
-    final l = 8 + r() * 14;
-    p.color = color.withValues(alpha: opacity * (0.4 + r() * 0.6));
-    canvas.drawLine(Offset(x, y), Offset(x - l * 0.28, y + l), p);
-  }
-}
-
 void _paintMoon(Canvas canvas, Offset c, double r) {
   canvas
     ..drawCircle(
@@ -894,50 +872,6 @@ class _SkylinePainter extends CustomPainter {
       old.color != color || old.windows != windows || old.seed != seed;
 }
 
-/// Rain over a whole screen, behind its content.
-class RainLayer extends StatelessWidget {
-  const RainLayer({
-    super.key,
-    this.color = Palette.lavender,
-    this.opacity = 0.18,
-    this.seed = 4,
-  });
-
-  final Color color;
-  final double opacity;
-  final int seed;
-
-  @override
-  Widget build(BuildContext context) => IgnorePointer(
-    child: RepaintBoundary(
-      child: CustomPaint(
-        painter: _RainPainter(color: color, opacity: opacity, seed: seed),
-        child: const SizedBox.expand(),
-      ),
-    ),
-  );
-}
-
-class _RainPainter extends CustomPainter {
-  _RainPainter({
-    required this.color,
-    required this.opacity,
-    required this.seed,
-  });
-
-  final Color color;
-  final double opacity;
-  final int seed;
-
-  @override
-  void paint(Canvas canvas, Size size) =>
-      paintRain(canvas, size, seed: seed, color: color, opacity: opacity);
-
-  @override
-  bool shouldRepaint(_RainPainter old) =>
-      old.color != color || old.opacity != opacity || old.seed != seed;
-}
-
 // ---------------------------------------------------------------------------
 // Fedora icon
 // ---------------------------------------------------------------------------
@@ -1389,4 +1323,604 @@ class _PortraitPainter extends CustomPainter {
   @override
   bool shouldRepaint(_PortraitPainter old) =>
       old.role != role || old.glow != glow;
+}
+
+// ---------------------------------------------------------------------------
+// Game screen backdrop
+// ---------------------------------------------------------------------------
+
+/// The light over the city behind the match table.
+enum BackdropMood {
+  /// The waiting room: violet dusk, stars coming out.
+  evening,
+
+  /// Rain, moon behind drifting clouds, a far-off flash of lightning.
+  night,
+
+  /// An overcast day: a hazy sun, slow clouds, most windows dark.
+  day,
+
+  /// Red sky, two searchlights sweeping over the roofs.
+  voting,
+
+  /// One warm spotlight from above, dust drifting in it.
+  lastWord;
+
+  static BackdropMood of(GamePhase? phase) => switch (phase) {
+    GamePhase.night => night,
+    GamePhase.voting => voting,
+    GamePhase.lastWord => lastWord,
+    GamePhase.day || GamePhase.roleReveal || GamePhase.ended => day,
+    GamePhase.lobby || null => evening,
+  };
+}
+
+/// The living city behind the whole game screen: sky, two rows of
+/// buildings along the bottom with windows switching on and off, and
+/// weather that follows the phase (see [BackdropMood]).
+///
+/// It stays quiet so the seats and cameras on top stay the centre: the
+/// still parts are painted once, the moving parts are thin and dim, and the
+/// whole thing loops every [_loop] without a jump. Still when the phone asks
+/// for less motion, and in widget tests ([NightCity.animationsEnabled]).
+class GameBackdrop extends StatefulWidget {
+  const GameBackdrop({super.key, required this.mood});
+
+  final BackdropMood mood;
+
+  @override
+  State<GameBackdrop> createState() => _GameBackdropState();
+}
+
+class _GameBackdropState extends State<GameBackdrop>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _clock;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final motion =
+        NightCity.animationsEnabled &&
+        !(MediaQuery.maybeDisableAnimationsOf(context) ?? false);
+    if (motion) {
+      _clock ??= AnimationController(vsync: this, duration: _loop)..repeat();
+    } else {
+      _clock?.dispose();
+      _clock = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _clock?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: Stack(
+      fit: StackFit.expand,
+      children: [
+        RepaintBoundary(
+          child: CustomPaint(painter: _BackdropStill(widget.mood)),
+        ),
+        RepaintBoundary(
+          child: CustomPaint(
+            painter: _BackdropLive(
+              widget.mood,
+              _clock ?? const AlwaysStoppedAnimation(0.3),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Colours and layout shared by the two backdrop painters.
+class _Backdrop {
+  _Backdrop(this.mood, this.size)
+    : scale = (size.height / 720).clamp(1.0, 1.6).toDouble();
+
+  final BackdropMood mood;
+  final Size size;
+
+  /// Buildings grow a little on tall screens.
+  final double scale;
+
+  List<Color> get sky => switch (mood) {
+    BackdropMood.evening => const [
+      Color(0xFF0B0720),
+      Color(0xFF1C0F3A),
+      Color(0xFF3D1650),
+    ],
+    BackdropMood.night => const [
+      Color(0xFF04031A),
+      Color(0xFF0C0A2E),
+      Color(0xFF1B1146),
+    ],
+    BackdropMood.day => const [
+      Color(0xFF1A1230),
+      Color(0xFF33223F),
+      Color(0xFF5A3448),
+    ],
+    BackdropMood.voting => const [
+      Color(0xFF10040E),
+      Color(0xFF2A0A22),
+      Color(0xFF55122E),
+    ],
+    BackdropMood.lastWord => const [
+      Color(0xFF0E0807),
+      Color(0xFF22140F),
+      Color(0xFF45291A),
+    ],
+  };
+
+  /// Glow along the roofs.
+  Color get horizon => switch (mood) {
+    BackdropMood.evening => const Color(0xFFFF3B8C),
+    BackdropMood.night => Palette.lavender,
+    BackdropMood.day => Palette.sun,
+    BackdropMood.voting => Palette.accent,
+    BackdropMood.lastWord => const Color(0xFFFFA25C),
+  };
+
+  double get litChance => switch (mood) {
+    BackdropMood.day => 0.05,
+    BackdropMood.lastWord => 0.08,
+    _ => 0.16,
+  };
+
+  List<Color> get lit => switch (mood) {
+    BackdropMood.voting => const [Color(0xFFFF6B7D), Palette.gold],
+    BackdropMood.day => const [Color(0xFF8A7AA8)],
+    _ => const [Palette.gold, Color(0xFFFF9F43), Palette.cyan],
+  };
+
+  /// Where the moon hangs: rising behind the far roofs, low on the
+  /// screen where the seats and panels on top are least likely to hide it.
+  Offset? get moon => switch (mood) {
+    BackdropMood.night => Offset(
+      size.width * 0.84,
+      size.height - backHeight * 0.92,
+    ),
+    BackdropMood.evening => Offset(
+      size.width * 0.16,
+      size.height - backHeight * 0.92,
+    ),
+    _ => null,
+  };
+
+  double get moonRadius =>
+      min(40, size.shortestSide * 0.055) *
+      (mood == BackdropMood.night ? 1 : 0.75);
+
+  double get backHeight => min(size.height * 0.34, 330);
+  double get frontHeight => min(size.height * 0.24, 230);
+
+  /// The rows in their own (unscaled) coordinates; painted scaled by [scale].
+  Rect get backRow => Rect.fromLTWH(
+    0,
+    (size.height - backHeight) / scale,
+    size.width / scale,
+    backHeight / scale,
+  );
+  Rect get frontRow => Rect.fromLTWH(
+    0,
+    (size.height - frontHeight) / scale,
+    size.width / scale,
+    frontHeight / scale,
+  );
+
+  static const frontFill = Color(0xFF07040F);
+  static const backSeed = 31;
+  static const frontSeed = 17;
+}
+
+/// Sky, moon or sun, and the city: painted once per size and mood.
+class _BackdropStill extends CustomPainter {
+  _BackdropStill(this.mood);
+
+  final BackdropMood mood;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final b = _Backdrop(mood, size);
+    final all = Offset.zero & size;
+    final h = size.height;
+    canvas.drawRect(
+      all,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: b.sky,
+          stops: const [0, 0.55, 1],
+        ).createShader(all),
+    );
+    // A glow rising from behind the roofs.
+    final glow = Rect.fromLTWH(
+      0,
+      h - b.backHeight * 1.6,
+      size.width,
+      b.backHeight * 1.6,
+    );
+    canvas.drawRect(
+      glow,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [
+            b.horizon.withValues(alpha: 0.22),
+            b.horizon.withValues(alpha: 0),
+          ],
+        ).createShader(glow),
+    );
+    if (b.moon case final moon?) {
+      // A little dimmed, so it never outshines the seats.
+      canvas.saveLayer(
+        Rect.fromCircle(center: moon, radius: b.moonRadius * 2.5),
+        Paint()..color = const Color(0xB3000000),
+      );
+      _paintMoon(canvas, moon, b.moonRadius);
+      canvas.restore();
+    }
+    canvas
+      ..save()
+      ..scale(b.scale);
+    paintSkyline(
+      canvas,
+      b.backRow,
+      seed: _Backdrop.backSeed,
+      fill: Color.lerp(b.sky.last, Colors.black, 0.45)!,
+      lit: [b.horizon.withValues(alpha: 0.7)],
+      litChance: 0.05,
+      minH: 0.35,
+      maxH: 0.95,
+    );
+    paintSkyline(
+      canvas,
+      b.frontRow,
+      seed: _Backdrop.frontSeed,
+      fill: _Backdrop.frontFill,
+      lit: b.lit,
+      litChance: b.litChance,
+      minH: 0.3,
+      maxH: 0.92,
+    );
+    canvas.restore();
+    // The street: a thin neon line, then dark.
+    canvas
+      ..drawRect(
+        Rect.fromLTWH(0, h - 10, size.width, 10),
+        Paint()..color = _Backdrop.frontFill,
+      )
+      ..drawRect(
+        Rect.fromLTWH(0, h - 10, size.width, 1.5),
+        Paint()..color = b.horizon.withValues(alpha: 0.35),
+      );
+  }
+
+  @override
+  bool shouldRepaint(_BackdropStill old) => old.mood != mood;
+}
+
+/// The moving parts of the backdrop, at time [clock] (0 to 1 of the loop).
+class _BackdropLive extends CustomPainter {
+  _BackdropLive(this.mood, this.clock) : super(repaint: clock);
+
+  final BackdropMood mood;
+  final Animation<double> clock;
+
+  Size? _laidOutFor;
+  late _Backdrop _b;
+  List<_Twinkle> _windows = const [];
+  List<_Star> _stars = const [];
+  List<_Drop> _drops = const [];
+  List<_Drop> _motes = const [];
+
+  static final _loopSeconds = _loop.inMilliseconds / 1000;
+
+  void _layout(Size size) {
+    if (_laidOutFor == size) return;
+    _laidOutFor = size;
+    _b = _Backdrop(mood, size);
+    final r = _Rng(101);
+    final lit = paintSkyline(
+      null,
+      _b.frontRow,
+      seed: _Backdrop.frontSeed,
+      litChance: _b.litChance,
+      minH: 0.3,
+      maxH: 0.92,
+    );
+    const periods = [4.0, 6.0, 8.0, 12.0, 24.0];
+    _windows = [
+      if (lit.isNotEmpty)
+        for (var i = 0; i < min(lit.length ~/ 3, 4 + size.width ~/ 60); i++)
+          _Twinkle(
+            lit[(r() * lit.length).floor()],
+            periods[(r() * periods.length).floor()],
+            r(),
+          ),
+    ];
+    if (mood == BackdropMood.night || mood == BackdropMood.evening) {
+      final sr = _Rng(55);
+      final n = (size.width * size.height / 9000).clamp(30, 140).round();
+      const starPeriods = [3.0, 4.0, 6.0, 8.0, 12.0];
+      _stars = [
+        for (var i = 0; i < n; i++)
+          _Star(
+            Offset(sr() * size.width, sr() * size.height * 0.6),
+            0.5 + sr() * 1.1,
+            starPeriods[(sr() * starPeriods.length).floor()],
+            sr(),
+          ),
+      ];
+    }
+    if (mood == BackdropMood.night) {
+      final dr = _Rng(9);
+      final n = (size.width * size.height / 4500).clamp(60, 360).round();
+      _drops = [
+        for (var i = 0; i < n; i++)
+          _Drop(
+            x: dr() * (size.width + size.height * 0.3) - 20,
+            y: dr() * size.height,
+            length: 10 + dr() * 16,
+            laps: 22 + (dr() * 12).floor(),
+            alpha: 0.22 * (0.4 + dr() * 0.6),
+          ),
+      ];
+    }
+    if (mood == BackdropMood.lastWord) {
+      final mr = _Rng(13);
+      _motes = [
+        for (var i = 0; i < 36; i++)
+          _Drop(
+            x: (mr() - 0.5) * 0.5,
+            y: mr(),
+            length: 0.8 + mr() * 1.6,
+            laps: 1 + (mr() * 2).floor(),
+            alpha: 0.25 + mr() * 0.45,
+          ),
+      ];
+    }
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    _layout(size);
+    final t = clock.value * _loopSeconds;
+    canvas.clipRect(Offset.zero & size);
+    switch (mood) {
+      case BackdropMood.night:
+        _paintStars(canvas, t);
+        _paintClouds(canvas, size, t, const Color(0xFF3A2F70), 0.6);
+        _paintLightning(canvas, size, t);
+      case BackdropMood.evening:
+        _paintStars(canvas, t);
+        _paintClouds(canvas, size, t, const Color(0xFF4A1E5A), 0.4);
+      case BackdropMood.day:
+        _paintSun(canvas, size, t);
+        _paintClouds(canvas, size, t, const Color(0xFF6E4A66), 0.35);
+      case BackdropMood.voting:
+        _paintSearchlights(canvas, size, t);
+      case BackdropMood.lastWord:
+        _paintSpotlight(canvas, size, t);
+    }
+    _paintWindows(canvas, t);
+    if (mood == BackdropMood.night) _paintRain(canvas, size, t);
+  }
+
+  void _paintStars(Canvas canvas, double t) {
+    final p = Paint();
+    for (final s in _stars) {
+      final a = 0.5 + 0.5 * sin((t / s.period + s.phase) * 2 * pi);
+      p.color = Colors.white.withValues(alpha: 0.12 + 0.45 * a);
+      canvas.drawCircle(s.at, s.radius, p);
+    }
+  }
+
+  /// Three wide soft clouds drifting left to right across the top.
+  void _paintClouds(
+    Canvas canvas,
+    Size size,
+    double t,
+    Color color,
+    double alpha,
+  ) {
+    final w = size.width;
+    // In the open sky just over the roofs (the top is under the header),
+    // one of them passing in front of the moon.
+    final roofs = size.height - _b.backHeight;
+    for (final (laps, above, width, offset) in const [
+      (1, 1.1, 0.55, 0.1),
+      (1, -0.08, 0.4, 0.62),
+      (2, 0.65, 0.3, 0.35),
+    ]) {
+      final y = roofs - _b.backHeight * above;
+      final cw = max(220.0, w * width);
+      final span = w + cw;
+      final x = (offset + t / _loopSeconds * laps) % 1 * span - cw / 2;
+      final rect = Rect.fromCenter(
+        center: Offset(x, y),
+        width: cw,
+        height: cw * 0.22,
+      );
+      canvas.drawOval(
+        rect,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              color.withValues(alpha: alpha),
+              color.withValues(alpha: alpha * 0.5),
+              color.withValues(alpha: 0),
+            ],
+            stops: const [0, 0.5, 1],
+          ).createShader(rect),
+      );
+    }
+  }
+
+  /// A far-off double flash, once a loop.
+  void _paintLightning(Canvas canvas, Size size, double t) {
+    double flash = 0;
+    for (final (start, end, peak) in const [
+      (11.0, 11.12, 0.12),
+      (11.26, 11.5, 0.08),
+    ]) {
+      if (t >= start && t <= end) {
+        flash = peak * (1 - (t - start) / (end - start));
+      }
+    }
+    if (flash <= 0) return;
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = Palette.lavender.withValues(alpha: flash),
+    );
+  }
+
+  void _paintSun(Canvas canvas, Size size, double t) {
+    final c = const Alignment(-0.62, -0.72).withinRect(Offset.zero & size);
+    final r = min(220.0, size.shortestSide * 0.32);
+    final pulse = 0.85 + 0.15 * sin(t / 8 * 2 * pi);
+    final rect = Rect.fromCircle(center: c, radius: r);
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            const Color(0xFFFFD08A).withValues(alpha: 0.32 * pulse),
+            const Color(0xFFFFB547).withValues(alpha: 0.1 * pulse),
+            const Color(0x00FFB547),
+          ],
+          stops: const [0, 0.35, 1],
+        ).createShader(rect),
+    );
+  }
+
+  /// Two beams from behind the roofs, crossing and parting.
+  void _paintSearchlights(Canvas canvas, Size size, double t) {
+    final w = size.width, h = size.height;
+    final reach = h * 1.1;
+    for (final (at, period, phase) in const [
+      (0.22, 12.0, 0.0),
+      (0.78, 8.0, 0.4),
+    ]) {
+      final base = Offset(w * at, h - _b.frontHeight * 0.7);
+      final angle = 0.42 * sin((t / period + phase) * 2 * pi);
+      final dir = Offset(sin(angle), -cos(angle));
+      final side = Offset(-dir.dy, dir.dx);
+      final tip = base + dir * reach;
+      final spread = reach * 0.12;
+      final beam = Path()
+        ..moveTo(base.dx - side.dx * 4, base.dy - side.dy * 4)
+        ..lineTo(tip.dx - side.dx * spread, tip.dy - side.dy * spread)
+        ..lineTo(tip.dx + side.dx * spread, tip.dy + side.dy * spread)
+        ..lineTo(base.dx + side.dx * 4, base.dy + side.dy * 4)
+        ..close();
+      canvas.drawPath(
+        beam,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+            colors: [
+              const Color(0xFFFF8AA0).withValues(alpha: 0.22),
+              const Color(0xFFFF8AA0).withValues(alpha: 0),
+            ],
+          ).createShader(Rect.fromPoints(base, tip)),
+      );
+    }
+  }
+
+  /// A warm cone from the top, swaying a little, with dust rising in it.
+  void _paintSpotlight(Canvas canvas, Size size, double t) {
+    final w = size.width, h = size.height;
+    final sway = 0.05 * sin(t / 8 * 2 * pi);
+    final top = Offset(w / 2, -20);
+    final spread = min(w * 0.32, h * 0.5);
+    final floor = Offset(w / 2 + sin(sway) * h, h);
+    final cone = Path()
+      ..moveTo(top.dx - 30, top.dy)
+      ..lineTo(floor.dx - spread, floor.dy)
+      ..lineTo(floor.dx + spread, floor.dy)
+      ..lineTo(top.dx + 30, top.dy)
+      ..close();
+    canvas.drawPath(
+      cone,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFFFFD9A0).withValues(alpha: 0.2),
+            const Color(0xFFFFB06B).withValues(alpha: 0.05),
+          ],
+        ).createShader(cone.getBounds()),
+    );
+    final p = Paint();
+    for (final m in _motes) {
+      final y = (m.y - t / _loopSeconds * m.laps) % 1;
+      final x =
+          w / 2 +
+          sin(sway) * h * y +
+          m.x * spread * 2 * y +
+          6 * sin((t / 6 + m.y) * 2 * pi);
+      p.color = const Color(0xFFFFE3B8)
+          .withValues(alpha: m.alpha * sin(y * pi));
+      canvas.drawCircle(Offset(x, y * h), m.length, p);
+    }
+  }
+
+  void _paintWindows(Canvas canvas, double t) {
+    if (_windows.isEmpty) return;
+    final off = Paint();
+    canvas
+      ..save()
+      ..scale(_b.scale);
+    for (final w in _windows) {
+      final phase = (t / w.period + w.phase) % 1;
+      final dark = phase < 0.5
+          ? 0.0
+          : phase < 0.56
+          ? (phase - 0.5) / 0.06
+          : phase < 0.9
+          ? 1.0
+          : (1 - phase) / 0.1;
+      if (dark <= 0) continue;
+      off.color = _Backdrop.frontFill.withValues(alpha: dark.clamp(0, 1));
+      canvas.drawRect(w.rect.inflate(0.5), off);
+    }
+    canvas.restore();
+  }
+
+  void _paintRain(Canvas canvas, Size size, double t) {
+    final fall = size.height + 40;
+    final p = Paint()..strokeWidth = 1;
+    for (final d in _drops) {
+      final y = (d.y + t / _loopSeconds * d.laps * fall) % fall - 30;
+      final x = d.x - (y + 30) * 0.22;
+      p.color = Palette.lavender.withValues(alpha: d.alpha);
+      canvas.drawLine(
+        Offset(x, y),
+        Offset(x - d.length * 0.22, y + d.length),
+        p,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BackdropLive old) =>
+      old.mood != mood || old.clock != clock;
+}
+
+class _Star {
+  const _Star(this.at, this.radius, this.period, this.phase);
+  final Offset at;
+  final double radius;
+  final double period;
+  final double phase;
 }
