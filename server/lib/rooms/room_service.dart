@@ -32,6 +32,7 @@ class RoomsConfig {
     this.chatHistory = 100,
     this.chatBurst = 5,
     this.chatWindow = const Duration(seconds: 5),
+    this.awayAfter = const Duration(seconds: 10),
   });
 
   /// Rooms open at once on this server. New rooms are refused above it.
@@ -65,6 +66,11 @@ class RoomsConfig {
   /// At most [chatBurst] chat messages per player in any [chatWindow].
   final int chatBurst;
   final Duration chatWindow;
+
+  /// A seated player offline this long when a match starts is not dealt
+  /// in (they would only sit as a ghost and forfeit). Shorter drops, like
+  /// a page reload, still get their card.
+  final Duration awayAfter;
 }
 
 class _Member {
@@ -185,6 +191,7 @@ class RoomService implements RealtimeRooms {
   final _byCode = <InviteCode, RoomId>{};
   final _roomOf = <UserId, RoomId>{};
   final _offline = <UserId, Timer>{};
+  final _offlineSince = <UserId, DateTime>{};
   final _chatTimes = <String, List<DateTime>>{};
   final _roomChanges = StreamController<Room>.broadcast();
   final _publicChanges = StreamController<PublicGameState>.broadcast();
@@ -509,14 +516,22 @@ class RoomService implements RealtimeRooms {
 
   Future<void> _start(_LiveRoom r) async {
     if (r.status != RoomStatus.open || r.starting) throw RoomError.inMatch;
-    if (r.members.length < r.settings.minPlayers) {
+    // Only players who are here get a card. Someone who closed the app
+    // after the last match (still seated for the reconnect grace) would
+    // otherwise be dealt in, sit as a ghost and forfeit after a minute.
+    // They stay seated, watch if they come back, and play the next one.
+    // See [RoomsConfig.awayAfter].
+    final seated = [
+      for (final m in r.members)
+        if (!_away(m.userId)) m,
+    ];
+    if (seated.length < r.settings.minPlayers) {
       throw RoomError.notEnoughPlayers;
     }
     r.autoStart?.cancel();
     r.starting = true;
     final matchId = _id('m');
     final seed = _random.nextInt(1 << 32);
-    final seated = [...r.members];
     final ids = [for (final m in seated) m.userId];
     final stake = r.settings.stake;
     final at = _now();
@@ -881,6 +896,7 @@ class RoomService implements RealtimeRooms {
     r.members.removeWhere((m) => m.userId == u);
     if (_roomOf[u] == r.id) _roomOf.remove(u);
     _offline.remove(u)?.cancel();
+    _offlineSince.remove(u);
     // Tell the player's sockets they are out; nothing more is sent to them.
     hub.sendToUser(u, RoomUpdated(r.toRoom()), room: r.id);
     if (r.members.isEmpty && (r.match == null || r.match!.over)) {
@@ -944,6 +960,7 @@ class RoomService implements RealtimeRooms {
     final r = id == null ? null : _rooms[id];
     if (p.online) {
       _offline.remove(p.userId)?.cancel();
+      _offlineSince.remove(p.userId);
       final m = r?.match;
       if (r != null && m != null) _broadcast(r, m);
       return;
@@ -952,13 +969,15 @@ class RoomService implements RealtimeRooms {
     final m = r.match;
     if (m != null) _broadcast(r, m);
     _offline[p.userId]?.cancel();
+    _offlineSince[p.userId] ??= _now();
     _offline[p.userId] = Timer(config.reconnectGrace, () {
       _offline.remove(p.userId);
+      _offlineSince.remove(p.userId);
       final now = _rooms[r.id];
       if (now == null || !now.has(p.userId) || hub.isOnline(p.userId)) return;
       if (now.starting) return;
       final m = now.match;
-      if (m != null && !m.over) {
+      if (m != null && !m.over && m.players.contains(p.userId)) {
         // Out of the match (stake forfeited) but still seated, so they see
         // the result if they come back before it ends.
         _systemAction(now, PlayerLeft(userId: p.userId));
@@ -966,6 +985,16 @@ class RoomService implements RealtimeRooms {
         _remove(now, p.userId);
       }
     });
+  }
+
+  /// Dropped off and not back for a while: more than a reload or a short
+  /// network blip. Players who never connected (just joined over HTTP and
+  /// still opening the table) are not away.
+  bool _away(UserId u) {
+    final since = _offlineSince[u];
+    return since != null &&
+        !hub.isOnline(u) &&
+        _now().difference(since) >= config.awayAfter;
   }
 
   void _sweep() {
