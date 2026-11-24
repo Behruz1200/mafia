@@ -29,6 +29,8 @@ sealed class ClientMessage {
         (k, v) => MapEntry(Role.values.byName(k), v! as int),
       ),
     ),
+    'comeBack' => ComeBack(j['roomId']! as String),
+    'setHost' => SetHost(j['roomId']! as String, j['userId']! as String),
     'ping' => const Ping(),
     final t => throw FormatException('Unknown ClientMessage: $t'),
   };
@@ -98,6 +100,26 @@ final class SetRoomRoles extends ClientMessage {
     'roomId': roomId,
     'roleCounts': roleCounts?.map((k, v) => MapEntry(k.name, v)),
   };
+}
+
+/// After a match: the player tapped Play again and is back in the waiting
+/// room. Until then they are in `Room.notBackIds` and the next match is
+/// dealt without them.
+final class ComeBack extends ClientMessage {
+  const ComeBack(this.roomId);
+  final String roomId;
+  @override
+  Json toJson() => {'t': 'comeBack', 'roomId': roomId};
+}
+
+/// The host hands the host role to another member, between matches.
+/// Refused with `not_host`, `not_member` or `room_in_match`.
+final class SetHost extends ClientMessage {
+  const SetHost(this.roomId, this.userId);
+  final String roomId;
+  final String userId;
+  @override
+  Json toJson() => {'t': 'setHost', 'roomId': roomId, 'userId': userId};
 }
 
 final class Ping extends ClientMessage {

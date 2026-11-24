@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:contracts/contracts.dart';
 import 'package:contracts/testing.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -128,9 +130,16 @@ class GameActions {
   Future<void> setRoles(Map<Role, int>? roleCounts) =>
       repo.setRoles(roomId, roleCounts);
 
+  /// Host only, between matches: makes [userId] the host.
+  Future<void> setHost(UserId userId) => repo.setHost(roomId, userId);
+
   Future<void> leave() => repo.leave(roomId);
 
-  /// Back to the waiting room after a match. The real server keeps the
-  /// room open; the demo just resets.
-  void playAgain() => demo?.reset();
+  /// Back to the waiting room after a match: tells the server I am back
+  /// for the next one. The demo just resets.
+  void playAgain() {
+    final d = demo;
+    if (d != null) return d.reset();
+    unawaited(repo.comeBack(roomId).catchError((Object _) {}));
+  }
 }

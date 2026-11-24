@@ -191,6 +191,18 @@ class HttpRoomRepository implements RoomRepository {
     _sendFrame(SetRoomRoles(roomId, roleCounts));
   }
 
+  @override
+  Future<void> setHost(RoomId roomId, UserId userId) async {
+    _ensureSocket();
+    _sendFrame(SetHost(roomId, userId));
+  }
+
+  @override
+  Future<void> comeBack(RoomId roomId) async {
+    _ensureSocket();
+    _sendFrame(ComeBack(roomId));
+  }
+
   /// Keeps [_chat] up to date before listeners hear about a message.
   void _remember(ServerMessage m) {
     switch (m) {

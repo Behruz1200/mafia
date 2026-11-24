@@ -204,6 +204,30 @@ class FakeRoomRepository implements RoomRepository {
     );
   }
 
+  /// Room ids [comeBack] was called with, for tests.
+  final cameBack = <RoomId>[];
+
+  @override
+  Future<void> comeBack(RoomId roomId) async => cameBack.add(roomId);
+
+  /// Hands the host role over at once, like the server.
+  @override
+  Future<void> setHost(RoomId roomId, UserId userId) async => emitRoom(
+    Room(
+      id: room.id,
+      inviteCode: room.inviteCode,
+      hostId: userId,
+      status: room.status,
+      settings: room.settings,
+      memberIds: room.memberIds,
+      memberNames: room.memberNames,
+      currentMatchId: room.currentMatchId,
+      createdAt: room.createdAt,
+      notBackIds: room.notBackIds,
+      offlineIds: room.offlineIds,
+    ),
+  );
+
   /// Applies the roles at once, like the server does for a fair setup.
   @override
   Future<void> setRoles(RoomId roomId, Map<Role, int>? roleCounts) async {

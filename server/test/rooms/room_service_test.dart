@@ -453,6 +453,127 @@ void main() {
       });
     });
 
+    group('play again', () {
+      /// Six seated, u0 (the Mafia in the script) walks out: town wins.
+      Room played(Rig rig, FakeAsync a) {
+        final room = fill(rig, a, n: 6);
+        start(rig, a, room);
+        rig.service.leave('u0', room.id);
+        a.flushMicrotasks();
+        expect(rig.service.room(room.id)!.status, RoomStatus.open);
+        return rig.service.room(room.id)!;
+      }
+
+      Object? startAs(Rig rig, FakeAsync a, RoomId id, UserId u) {
+        Object? err;
+        rig.service
+            .act(u, id, StartMatch(actorId: u))
+            .then(
+              (_) {},
+              onError: (Object e) {
+                err = e;
+              },
+            );
+        a.flushMicrotasks();
+        return err;
+      }
+
+      test('the next match is dealt only to those who came back', () {
+        fake((a) {
+          final rig = Rig();
+          final room = played(rig, a);
+          expect(room.notBackIds, ['u1', 'u2', 'u3', 'u4', 'u5']);
+          expect(room.readyIds, isEmpty);
+          final host = room.hostId;
+
+          for (final u in ['u1', 'u2', 'u3']) {
+            rig.service.comeBack(u, room.id);
+          }
+          a.flushMicrotasks();
+          expect(rig.sockets['u5']!.last<RoomUpdated>()!.room.readyIds, [
+            'u1',
+            'u2',
+            'u3',
+          ]);
+          expect(
+            startAs(rig, a, room.id, host),
+            roomError('not_enough_players'),
+          );
+
+          rig.service.comeBack('u4', room.id);
+          a.flushMicrotasks();
+          expect(startAs(rig, a, room.id, host), isNull);
+          final pub = rig.service.publicState(room.id)!;
+          expect(pub.players.map((p) => p.userId), ['u1', 'u2', 'u3', 'u4']);
+          // u5 is still seated and plays the one after.
+          expect(rig.service.room(room.id)!.memberIds, contains('u5'));
+          rig.service.dispose();
+        });
+      });
+
+      test('a host who leaves hands over to someone who is back', () {
+        fake((a) {
+          final rig = Rig();
+          final room = played(rig, a);
+          final host = room.hostId;
+          final back = ['u3', 'u4'].firstWhere((u) => u != host);
+          rig.service.comeBack(back, room.id);
+          a.flushMicrotasks();
+          rig.service.leave(host, room.id);
+          a.flushMicrotasks();
+          expect(rig.service.room(room.id)!.hostId, back);
+          rig.service.dispose();
+        });
+      });
+
+      test('a host who is gone a while hands over too', () {
+        fake((a) {
+          final rig = Rig();
+          final room = played(rig, a);
+          final host = room.hostId;
+          final back = ['u3', 'u4'].firstWhere((u) => u != host);
+          rig.service.comeBack(back, room.id);
+          a.flushMicrotasks();
+          rig.sockets[host]!.close();
+          a.flushMicrotasks();
+          expect(rig.service.room(room.id)!.offlineIds, [host]);
+          expect(rig.service.room(room.id)!.hostId, host, reason: 'a reload');
+          a.elapse(const Duration(seconds: 11));
+          expect(rig.service.room(room.id)!.hostId, back);
+          rig.service.dispose();
+        });
+      });
+
+      test('the host can hand the host role to another player', () {
+        fake((a) {
+          final rig = Rig();
+          final room = fill(rig, a, n: 6);
+          Object? hand(UserId u, UserId to) {
+            Object? err;
+            rig.service
+                .setHost(u, room.id, to)
+                .then(
+                  (_) {},
+                  onError: (Object e) {
+                    err = e;
+                  },
+                );
+            a.flushMicrotasks();
+            return err;
+          }
+
+          expect(hand('u1', 'u2'), roomError('not_host'));
+          expect(hand('u0', 'stranger'), roomError('not_in_room'));
+          expect(hand('u0', 'u3'), isNull);
+          expect(rig.sockets['u5']!.last<RoomUpdated>()!.room.hostId, 'u3');
+          expect(startAs(rig, a, room.id, 'u0'), roomError('not_host'));
+          expect(startAs(rig, a, room.id, 'u3'), isNull);
+          expect(hand('u3', 'u1'), roomError('room_in_match'));
+          rig.service.dispose();
+        });
+      });
+    });
+
     test('a match that runs too long is cancelled and refunded', () {
       fake((a) {
         final rig = Rig(

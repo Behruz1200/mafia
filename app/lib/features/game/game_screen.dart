@@ -37,6 +37,10 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   /// room again.
   MatchId? _dismissedMatch;
 
+  /// The last match's final table, kept so a player still reading the
+  /// results is not pulled into a match that started without them.
+  PublicGameState? _ended;
+
   /// How many of my actions the server has refused, so the table can let
   /// me pick again.
   int _refusals = 0;
@@ -117,6 +121,14 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     final private = ref.watch(myStateProvider(id)).value;
     final result = ref.watch(matchEndProvider(id)).value;
     final isDemo = actions.demo != null;
+    ref.listen(roomProvider(id), (prev, next) {
+      final was = prev?.value?.hostId;
+      final now = next.value?.hostId;
+      if (was != null && was != me && now == me && mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(t.gameYouAreHostNow)));
+      }
+    });
     ref.listen(roomErrorsProvider, (_, next) {
       final e = next.value;
       if (e != null) _onRefused(e);
@@ -125,10 +137,24 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     // each other in the waiting room and stay connected into the match.
     ref.watch(callSessionProvider(id));
 
+    if (public != null && public.phase == GamePhase.ended) _ended = public;
+    final ended = _ended;
+    // Still on the last results by the server's count.
+    final notBack = room != null && me != null && room.notBackIds.contains(me);
+    // A match I am not in started while I was reading the results.
+    final startedWithoutMe =
+        notBack &&
+        ended != null &&
+        public != null &&
+        public.matchId != ended.matchId &&
+        public.phase != GamePhase.lobby &&
+        !public.players.any((p) => p.userId == me);
     final showWaiting =
-        public == null ||
-        public.phase == GamePhase.lobby ||
-        (public.phase == GamePhase.ended && public.matchId == _dismissedMatch);
+        !startedWithoutMe &&
+        (public == null ||
+            public.phase == GamePhase.lobby ||
+            (public.phase == GamePhase.ended &&
+                public.matchId == _dismissedMatch));
 
     final Widget body;
     if (room == null) {
@@ -142,6 +168,22 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         me: me,
         onStart: actions.startMatch,
         onSetRoles: actions.setRoles,
+        onMakeHost: actions.setHost,
+        rematch: public?.phase == GamePhase.ended,
+      );
+    } else if (startedWithoutMe) {
+      final last = ended;
+      body = ResultsView(
+        state: last,
+        result: result?.matchId == last.matchId ? result : null,
+        me: me,
+        room: room,
+        startedWithoutMe: true,
+        onPlayAgain: () {
+          setState(() => _dismissedMatch = last.matchId);
+          actions.playAgain();
+        },
+        onBackToLobby: _leave,
       );
     } else if (public.phase == GamePhase.roleReveal) {
       body = _RoleReveal(
@@ -155,6 +197,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         state: public,
         result: result?.matchId == public.matchId ? result : null,
         me: me,
+        room: room,
         onPlayAgain: () {
           setState(() => _dismissedMatch = public.matchId);
           actions.playAgain();

@@ -79,6 +79,14 @@ abstract interface class RoomRepository {
   /// role but Civilian; null for the standard deal). The new setup comes
   /// back on [watchRoom]; a refusal comes as a socket error.
   Future<void> setRoles(RoomId roomId, Map<Role, int>? roleCounts);
+
+  /// After a match: I tapped Play again and am back in the waiting room,
+  /// ready for the next one (`ComeBack`).
+  Future<void> comeBack(RoomId roomId);
+
+  /// Host only, between matches: makes [userId] the host instead of me.
+  /// The new host comes back on [watchRoom]; a refusal as a socket error.
+  Future<void> setHost(RoomId roomId, UserId userId);
 }
 
 /// Owned by stream 4 (coins).

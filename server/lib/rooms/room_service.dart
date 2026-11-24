@@ -130,6 +130,15 @@ class _LiveRoom {
   DateTime lastActivity = DateTime.now();
   Timer? autoStart;
 
+  /// Members still on the last match's results (not tapped Play again).
+  final notBack = <UserId>{};
+
+  /// Members whose app is not connected right now.
+  final offline = <UserId>{};
+
+  /// Passes the host on when the host has been gone a while.
+  Timer? hostAway;
+
   /// Recent chat on every channel, oldest first. Each player is only ever
   /// sent the messages `ChatRules` lets them read.
   final chat = <ChatMessage>[];
@@ -148,6 +157,14 @@ class _LiveRoom {
     memberNames: {for (final m in members) m.userId: m.displayName},
     currentMatchId: match?.id,
     createdAt: createdAt,
+    notBackIds: [
+      for (final u in memberIds)
+        if (notBack.contains(u)) u,
+    ],
+    offlineIds: [
+      for (final u in memberIds)
+        if (offline.contains(u)) u,
+    ],
   );
 }
 
@@ -385,6 +402,31 @@ class RoomService implements RealtimeRooms {
     _apply(r, action, fromPlayer: true);
   }
 
+  /// After a match, [u] tapped Play again: they are back in the waiting
+  /// room and get a card in the next match.
+  @override
+  Future<void> comeBack(UserId u, RoomId roomId) async {
+    final r = _rooms[roomId];
+    if (r == null || !r.has(u)) throw RoomError.notMember;
+    if (!r.notBack.remove(u)) return;
+    _changed(r);
+    _maybeAutoStart(r);
+  }
+
+  /// The host hands the host role to another member, between matches.
+  @override
+  Future<void> setHost(UserId u, RoomId roomId, UserId to) async {
+    final r = _rooms[roomId];
+    if (r == null || !r.has(u)) throw RoomError.notMember;
+    if (r.hostId != u) throw RoomError.notHost;
+    if (!r.has(to)) throw RoomError.notMember;
+    if (r.status != RoomStatus.open || r.starting) throw RoomError.inMatch;
+    if (to == u) return;
+    r.hostAway?.cancel();
+    r.hostId = to;
+    _changed(r);
+  }
+
   /// The host picks the roles for the next match. Only between matches,
   /// and only in rooms joined by code: quick-match rooms seat strangers for
   /// coins, so they always use the standard deal.
@@ -563,10 +605,9 @@ class RoomService implements RealtimeRooms {
     // otherwise be dealt in, sit as a ghost and forfeit after a minute.
     // They stay seated, watch if they come back, and play the next one.
     // See [RoomsConfig.awayAfter].
-    final seated = [
-      for (final m in r.members)
-        if (!_away(m.userId)) m,
-    ];
+    // The same goes for anyone still on the last match's results: they
+    // join the next one once they tap Play again.
+    final seated = _ready(r);
     if (seated.length < r.settings.minPlayers) {
       throw RoomError.notEnoughPlayers;
     }
@@ -647,8 +688,9 @@ class RoomService implements RealtimeRooms {
       _log('match $matchId ran too long; cancelling');
       _finish(r, m, _cancelled(r.id, matchId, stake));
     });
-    // The last match's secret chats are over; table chat carries on.
-    r.chat.removeWhere((c) => c.channel != ChatChannel.table);
+    // A new game starts with an empty chat: nothing from the last one
+    // (least of all the Mafia's) carries over.
+    r.chat.clear();
     _changed(r);
     _broadcast(r, m);
     _sendChatHistory(r, r.memberIds);
@@ -723,6 +765,10 @@ class RoomService implements RealtimeRooms {
     for (final u in [...r.memberIds]) {
       if (!hub.isOnline(u) && !_offline.containsKey(u)) _remove(r, u);
     }
+    // Everyone is on the results now; each comes back with Play again.
+    r.notBack
+      ..clear()
+      ..addAll(r.memberIds);
     if (r.members.isEmpty) {
       _close(r);
     } else if (_rooms.containsKey(r.id)) {
@@ -943,6 +989,8 @@ class RoomService implements RealtimeRooms {
 
   void _remove(_LiveRoom r, UserId u) {
     r.members.removeWhere((m) => m.userId == u);
+    r.notBack.remove(u);
+    r.offline.remove(u);
     if (_roomOf[u] == r.id) _roomOf.remove(u);
     _offline.remove(u)?.cancel();
     _offlineSince.remove(u);
@@ -952,15 +1000,42 @@ class RoomService implements RealtimeRooms {
       _close(r);
       return;
     }
-    if (r.hostId == u && r.members.isNotEmpty) {
-      r.hostId = r.members.first.userId;
-    }
+    if (r.hostId == u && r.members.isNotEmpty) _passHost(r);
     if (r.members.length < r.settings.minPlayers) r.autoStart?.cancel();
     _changed(r);
   }
 
+  /// Members who get a card if the match starts now: here, and back from
+  /// the last match's results.
+  List<_Member> _ready(_LiveRoom r) => [
+    for (final m in r.members)
+      if (!_away(m.userId) && !r.notBack.contains(m.userId)) m,
+  ];
+
+  /// Makes someone else the host: preferably a member who is here and
+  /// back in the waiting room, so the room is never stuck waiting for a
+  /// host who is gone.
+  void _passHost(_LiveRoom r) {
+    r.hostAway?.cancel();
+    final others = [
+      for (final m in r.members)
+        if (m.userId != r.hostId) m,
+    ];
+    if (others.isEmpty) return;
+    bool here(_Member m) => !r.offline.contains(m.userId);
+    final next =
+        others
+            .where((m) => here(m) && !r.notBack.contains(m.userId))
+            .firstOrNull ??
+        others.where(here).firstOrNull ??
+        others.first;
+    _log('room ${r.id}: host ${r.hostId} -> ${next.userId}');
+    r.hostId = next.userId;
+  }
+
   void _close(_LiveRoom r) {
     r.autoStart?.cancel();
+    r.hostAway?.cancel();
     r.match?.cancelTimers();
     _rooms.remove(r.id);
     _byCode.remove(r.code);
@@ -982,10 +1057,12 @@ class RoomService implements RealtimeRooms {
 
   void _maybeAutoStart(_LiveRoom r) {
     if (r.settings.visibility != RoomVisibility.public) return;
-    if (r.members.length < r.settings.minPlayers) return;
+    if (r.status != RoomStatus.open || r.starting) return;
+    final ready = _ready(r).length;
+    if (ready < r.settings.minPlayers) return;
     void go() => unawaited(_quietly(() => _start(r)));
     r.autoStart?.cancel();
-    if (r.isFull) {
+    if (ready >= r.settings.maxPlayers) {
       go();
     } else {
       r.autoStart = Timer(config.quickStartDelay, go);
@@ -1012,11 +1089,26 @@ class RoomService implements RealtimeRooms {
       _offlineSince.remove(p.userId);
       final m = r?.match;
       if (r != null && m != null) _broadcast(r, m);
+      if (r != null && r.offline.remove(p.userId)) _changed(r);
+      if (r != null && r.hostId == p.userId) r.hostAway?.cancel();
       return;
     }
     if (r == null) return;
     final m = r.match;
     if (m != null) _broadcast(r, m);
+    if (r.offline.add(p.userId)) _changed(r);
+    // A host who is gone between matches would leave everyone waiting:
+    // after a short while someone who is here becomes the host.
+    if (r.hostId == p.userId && r.match == null) {
+      r.hostAway?.cancel();
+      r.hostAway = Timer(config.awayAfter, () {
+        final now = _rooms[r.id];
+        if (now == null || now.hostId != p.userId || now.match != null) return;
+        if (hub.isOnline(p.userId)) return;
+        _passHost(now);
+        _changed(now);
+      });
+    }
     _offline[p.userId]?.cancel();
     _offlineSince[p.userId] ??= _now();
     _offline[p.userId] = Timer(config.reconnectGrace, () {
