@@ -2,6 +2,7 @@ import 'package:contracts/contracts.dart';
 import 'package:contracts/testing.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mafia_app/features/game/game_screen.dart';
+import 'package:mafia_app/features/game/ui/noir_art.dart';
 import 'package:mafia_app/features/game/widgets/chat_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -243,11 +244,14 @@ void main() {
     expect(find.text('WINNERS'), findsOneWidget);
     expect(find.text('LOSERS'), findsOneWidget);
     expect(find.text('Aziza (You)'), findsOneWidget);
-    // "Mafia" is also the screen title, so look for the role chip's icon.
+    // "Mafia" is also the screen title, so look for the role chip's badge.
     for (final role in ['Don', 'Detective', 'Doctor', 'Civilian']) {
       expect(find.text(role), findsOneWidget, reason: role);
     }
-    expect(find.byIcon(Icons.theater_comedy), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is RoleBadge && w.role == Role.mafia),
+      findsOneWidget,
+    );
     expect(find.text('Left'), findsOneWidget);
   });
 

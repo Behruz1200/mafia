@@ -1,8 +1,10 @@
 import 'dart:math';
 
+import 'package:contracts/contracts.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/theme.dart';
+import '../game/ui/noir_art.dart';
 
 /// The night sky behind the sign-in screens: deep violet with two soft
 /// glows.
@@ -62,11 +64,11 @@ class RoleCardFan extends StatelessWidget {
   final double height;
 
   static const _cards = [
-    // (icon, top colour, bottom colour, angle in degrees, x offset)
-    (Icons.medical_services, Color(0xFF18B9C7), Color(0xFF235D9E), -22.0, -1.0),
-    (Icons.search, Color(0xFF6C4BD8), Color(0xFF2E1D7A), -8.0, -0.4),
-    (Icons.person, Color(0xFFD0682A), Color(0xFF7A2E1D), 8.0, 0.4),
-    (Icons.theater_comedy, Palette.accent, Palette.accentDeep, 20.0, 1.0),
+    // (role, angle in degrees, x offset)
+    (Role.doctor, -22.0, -1.0),
+    (Role.detective, -8.0, -0.4),
+    (Role.don, 8.0, 0.4),
+    (Role.mafia, 20.0, 1.0),
   ];
 
   @override
@@ -79,7 +81,7 @@ class RoleCardFan extends StatelessWidget {
         alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
-          for (final (i, (icon, top, bottom, angle, dx)) in _cards.indexed)
+          for (final (i, (role, angle, dx)) in _cards.indexed)
             Transform.translate(
               offset: Offset(dx * cardW * 0.5, (i == 0 || i == 3) ? 18 : 0),
               child: Transform.rotate(
@@ -87,8 +89,7 @@ class RoleCardFan extends StatelessWidget {
                 child: _MiniCard(
                   width: cardW,
                   height: cardH,
-                  icon: icon,
-                  colors: [top, bottom],
+                  role: role,
                   glow: i == _cards.length - 1,
                 ),
               ),
@@ -99,40 +100,38 @@ class RoleCardFan extends StatelessWidget {
   }
 }
 
+/// A small role card: the role's character in front of the night city.
 class _MiniCard extends StatelessWidget {
   const _MiniCard({
     required this.width,
     required this.height,
-    required this.icon,
-    required this.colors,
+    required this.role,
     this.glow = false,
   });
 
   final double width;
   final double height;
-  final IconData icon;
-  final List<Color> colors;
+  final Role role;
   final bool glow;
 
   @override
   Widget build(BuildContext context) {
+    final rim = NoirArt.rim(role);
     return Container(
       width: width,
       height: height,
-      // Keeps the light circle in the corner inside the rounded card.
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
+        color: const Color(0xFF120A22),
         borderRadius: BorderRadius.circular(width * 0.16),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: colors,
+        border: Border.all(
+          color: rim.withValues(alpha: glow ? 1 : 0.6),
+          width: 1.5,
         ),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
         boxShadow: [
           BoxShadow(
             color: glow
-                ? colors.first.withValues(alpha: 0.55)
+                ? rim.withValues(alpha: 0.55)
                 : Colors.black.withValues(alpha: 0.45),
             blurRadius: glow ? 40 : 20,
             offset: const Offset(0, 12),
@@ -141,28 +140,15 @@ class _MiniCard extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          Positioned(
-            right: -width * 0.3,
-            top: -width * 0.3,
-            child: Container(
-              width: width * 0.8,
-              height: width * 0.8,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.08),
-              ),
-            ),
+          const Positioned.fill(
+            child: NightCity(figure: false, moon: null, shadeLeft: false),
           ),
-          Center(
-            child: Container(
-              width: width * 0.56,
-              height: width * 0.56,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.black.withValues(alpha: 0.22),
-              ),
-              child: Icon(icon, size: width * 0.3, color: Colors.white),
-            ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: height * 0.72,
+            child: RolePortrait(role: role),
           ),
         ],
       ),
@@ -170,7 +156,6 @@ class _MiniCard extends StatelessWidget {
   }
 }
 
-/// Uzbekistan's flag, small, for the phone number prefix.
 class UzFlag extends StatelessWidget {
   const UzFlag({super.key, this.width = 24});
 

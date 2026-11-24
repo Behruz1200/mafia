@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../ui/game_style.dart';
 import '../ui/game_text.dart';
+import '../ui/noir_art.dart';
 import '../story/story_view.dart';
 
 /// After the match: who won, what it meant for my coins, and what next.
@@ -74,17 +75,20 @@ class ResultsView extends StatelessWidget {
                 BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 60),
               ],
             ),
-            child: Icon(
-              cancelled
-                  ? Icons.block_rounded
-                  : winner == Team.mafia
-                  ? Icons.theater_comedy
-                  : winner == Team.maniac
-                  ? GameStyle.roleIcon(Role.maniac)
-                  : Icons.location_city_rounded,
-              size: 68,
-              color: color,
-            ),
+            clipBehavior: Clip.antiAlias,
+            child: cancelled
+                ? Icon(Icons.block_rounded, size: 68, color: color)
+                // The winning side's character.
+                : Padding(
+                    padding: const EdgeInsets.only(top: 18),
+                    child: RolePortrait(
+                      role: switch (winner) {
+                        Team.mafia => Role.mafia,
+                        Team.maniac => Role.maniac,
+                        _ => Role.detective,
+                      },
+                    ),
+                  ),
           ),
         ),
         const SizedBox(height: 22),
@@ -337,7 +341,7 @@ class _RoleRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               spacing: 6,
               children: [
-                Icon(GameStyle.roleIcon(role), size: 16, color: color),
+                RoleBadge(role: role, size: 22),
                 Text(
                   t.roleName(role),
                   style: TextStyle(
