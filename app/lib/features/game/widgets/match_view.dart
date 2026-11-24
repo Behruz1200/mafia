@@ -9,6 +9,7 @@ import '../ui/game_text.dart';
 import 'chat_panel.dart';
 import 'phase_header.dart';
 import 'player_table.dart';
+import 'vote_board.dart';
 import 'role_card.dart';
 import 'skip_timer_bar.dart';
 
@@ -253,6 +254,16 @@ class _MatchViewState extends State<MatchView> {
                   highlight: speaker,
                 ),
               ),
+              // Open voting: everyone sees who votes for whom, live.
+              if (s.phase == GamePhase.voting) ...[
+                const SizedBox(height: 12),
+                VoteBoard(
+                  votes: s.votes,
+                  players: s.players,
+                  me: widget.me,
+                  live: true,
+                ),
+              ],
               const SizedBox(height: 14),
               _Prompt(
                 text: _promptText(t, action),
@@ -276,6 +287,15 @@ class _MatchViewState extends State<MatchView> {
                     ? GameStyle.crimson
                     : GameStyle.gold,
               ),
+              // How the last vote went, until the next one.
+              if (s.phase != GamePhase.voting && s.lastVotes.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                VoteBoard(
+                  votes: s.lastVotes,
+                  players: s.players,
+                  me: widget.me,
+                ),
+              ],
               const SizedBox(height: 12),
               ChatPanel(
                 roomId: widget.roomId,

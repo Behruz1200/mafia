@@ -45,6 +45,7 @@ class DemoMatch {
   /// Show the waiting room with a full table.
   void prepare() {
     _cancel();
+    _lastVotes = const {};
     _players = samplePlayers(_room.memberIds.length.clamp(6, 12));
     if (!_players.any((p) => p.userId == me)) {
       _players = [
@@ -177,6 +178,7 @@ class DemoMatch {
   }
 
   void _startVoting() {
+    _lastVotes = const {};
     _emitPublic(phase: GamePhase.voting, endsIn: voting, votes: const {});
     if (_meAlive) _allow(const ['castVote']);
     // The table slowly turns on one Mafia member.
@@ -200,6 +202,7 @@ class DemoMatch {
 
   void _endVoting(UserId out) {
     _allow(const []);
+    _lastVotes = {..._public!.votes};
     _eliminate(out, EliminationCause.votedOut, GamePhase.voting);
     if (_mafia.isEmpty || _mafia.length >= _town.length) {
       _end(_mafia.isEmpty ? Team.town : Team.mafia);
@@ -254,6 +257,9 @@ class DemoMatch {
 
   String get _matchId => 'demo_match_$_matchNo';
 
+  /// How the last vote ended, shown until the next vote.
+  Map<UserId, UserId?> _lastVotes = const {};
+
   void _emitPublic({
     required GamePhase phase,
     required Duration? endsIn,
@@ -269,6 +275,7 @@ class DemoMatch {
       phaseEndsAt: endsIn == null ? null : DateTime.now().add(endsIn),
       players: _players,
       votes: votes ?? _public?.votes ?? const {},
+      lastVotes: _lastVotes,
       log: List.unmodifiable(_log),
       winner: winner,
     );
@@ -285,6 +292,7 @@ class DemoMatch {
       phaseEndsAt: p.phaseEndsAt,
       players: p.players,
       votes: votes,
+      lastVotes: p.lastVotes,
       log: p.log,
       winner: p.winner,
     );
