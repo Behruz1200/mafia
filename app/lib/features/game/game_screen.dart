@@ -217,29 +217,26 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       );
     }
 
+    final backdrop = BackdropMood.of(
+      showWaiting ? GamePhase.lobby : public.phase,
+    );
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _leave();
       },
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: GameStyle.backgroundFor(
-            showWaiting ? GamePhase.lobby : public.phase,
-          ),
-        ),
+      child: ColoredBox(
+        color: GameStyle.felt,
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // The city at night along the bottom, and rain after dark.
-            const Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Opacity(opacity: 0.3, child: SkylineStrip(height: 120)),
+            // The city behind the table; its sky and weather follow the
+            // phase, cross-fading when it changes.
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 900),
+              child: GameBackdrop(key: ValueKey(backdrop), mood: backdrop),
             ),
-            if (!showWaiting && public.phase == GamePhase.night)
-              const RainLayer(),
             Scaffold(
               backgroundColor: Colors.transparent,
               appBar: AppBar(
