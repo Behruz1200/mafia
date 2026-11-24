@@ -101,6 +101,31 @@ void main() {
     });
   });
 
+  test('a sleeping Don does not speak for the Mafia, so the night waits', () {
+    final table = Table(
+      players: 7,
+      deal: {
+        Role.don: 1,
+        Role.mafia: 1,
+        Role.detective: 1,
+        Role.doctor: 1,
+        Role.hypnotist: 1,
+      },
+    )..toNight();
+    final don = table.one(Role.don);
+    final mafia = table.one(Role.mafia);
+    final civ = table.one(Role.civilian);
+    table
+      ..act(NightKill(actorId: don, targetId: civ))
+      ..act(NightCheck(actorId: don, targetId: table.one(Role.doctor)))
+      ..act(NightCheck(actorId: table.one(Role.detective), targetId: don))
+      ..act(NightHeal(actorId: table.one(Role.doctor), targetId: don))
+      ..act(NightSleep(actorId: table.one(Role.hypnotist), targetId: don));
+    expect(table.phase, GamePhase.night);
+    table.act(NightKill(actorId: mafia, targetId: table.one(Role.hypnotist)));
+    expect(table.phase, isNot(GamePhase.night));
+  });
+
   group('two deaths in one night', () {
     test('each gets a last word, in order', () {
       final table = Table(deal: allNew, skipLastWords: false)..toNight();

@@ -19,7 +19,7 @@ class PhaseDurations {
     this.night = const Duration(seconds: 30),
     this.day = const Duration(seconds: 120),
     this.voting = const Duration(seconds: 30),
-    this.lastWord = const Duration(seconds: 30),
+    this.lastWord = const Duration(seconds: 7),
   });
 
   final Duration roleReveal;
@@ -45,7 +45,7 @@ class PhaseDurations {
     day: Duration(seconds: j['daySec']! as int),
     voting: Duration(seconds: j['votingSec']! as int),
     // Older apps and stored settings have no last word yet.
-    lastWord: Duration(seconds: j['lastWordSec'] as int? ?? 30),
+    lastWord: Duration(seconds: j['lastWordSec'] as int? ?? 7),
   );
 }
 

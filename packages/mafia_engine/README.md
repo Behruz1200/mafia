@@ -82,6 +82,8 @@ rejects it earlier with `too_early`.
   Detective. Nobody checks the same player twice. Results arrive in the
   private view when the night ends.
 - The night ends early once every living night role has made every pick.
+  Once the Don has shot, the other Mafia need not pick (the Don's shot
+  decides), unless the Hypnotist put the Don to sleep that night.
 
 **Day.** Talk. The night's result is in the log. Ends on the timer, or
 early once more than half of the living players (`SkipPhase.needed`: 3 of 4,
@@ -99,7 +101,7 @@ not vote do not count. Voting ends early once every living player has voted.
 **Last word.** When someone is killed at night or voted out and the match
 goes on, a `lastWord` phase comes first (`night -> lastWord -> day`,
 `voting -> lastWord -> night`). `PublicGameState.lastWordBy` is the speaker:
-already out, but the only one who may talk at the table (30 seconds by
+already out, but the only one who may talk at the table (7 seconds by
 default, `PhaseDurations.lastWord`). They may type up to three lines
 (`SayLastWord`, each cleaned and cut to 200 characters by
 `ChatRules.clean`), which go to the log as `lastWord` events with `text`, and

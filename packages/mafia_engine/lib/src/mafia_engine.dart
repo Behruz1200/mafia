@@ -207,9 +207,27 @@ class MafiaEngine implements GameEngine {
     bool has(UserId id, String type) =>
         s.pendingNightActions.any((p) => p.actorId == id && p.type == type);
     final mem = _memory(s);
+    // The Don's shot is the Mafia's shot (see _resolveNight), so once the
+    // Don has shot the other Mafia have nothing left that counts: the
+    // night does not wait for them. Unless the Hypnotist put the Don to
+    // sleep, which voids the Don's pick and leaves it to the others.
+    final asleep = s.pendingNightActions
+        .whereType<NightSleep>()
+        .where((a) => _player(s, a.actorId)?.isAlive ?? false)
+        .lastOrNull
+        ?.targetId;
+    final donShot = s.public.alive.any(
+      (p) =>
+          s.roles[p.userId] == Role.don &&
+          p.userId != asleep &&
+          has(p.userId, 'nightKill'),
+    );
     for (final p in s.public.alive) {
       final role = s.roles[p.userId]!;
-      if (_kills(role) && !has(p.userId, 'nightKill')) return false;
+      final followsDon = donShot && role.team == Team.mafia;
+      if (_kills(role) && !followsDon && !has(p.userId, 'nightKill')) {
+        return false;
+      }
       if (role == Role.bodyguard &&
           _hasTarget(s, p.userId, mem.lastGuard) &&
           !has(p.userId, 'nightGuard')) {

@@ -119,7 +119,7 @@ void main() {
     expect(PhaseDurations.fromJson(wire(d.toJson())).lastWord.inSeconds, 45);
     // Settings stored before last words existed get the default.
     final old = d.toJson()..remove('lastWordSec');
-    expect(PhaseDurations.fromJson(old).lastWord, const Duration(seconds: 30));
+    expect(PhaseDurations.fromJson(old).lastWord, const Duration(seconds: 7));
   });
 
   test('chat messages on the socket', () {
