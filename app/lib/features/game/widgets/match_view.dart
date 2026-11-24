@@ -27,6 +27,7 @@ class MatchView extends StatefulWidget {
     required this.onNightAction,
     required this.onVote,
     this.onSkipTimer,
+    this.refusals = 0,
   });
 
   final RoomId roomId;
@@ -39,6 +40,10 @@ class MatchView extends StatefulWidget {
   /// Agree or stop agreeing to end the day's timer early.
   final Future<void> Function(bool skip)? onSkipTimer;
 
+  /// Goes up each time the server refuses one of this player's actions,
+  /// so a pick shown as confirmed can be made again.
+  final int refusals;
+
   @override
   State<MatchView> createState() => _MatchViewState();
 }
@@ -47,30 +52,53 @@ class _MatchViewState extends State<MatchView> {
   UserId? _selected;
   bool _sending = false;
 
-  /// What the server already has from this player this turn: a target id,
-  /// or '' for a skipped vote. The same choice can't be sent twice; picking
-  /// someone else and confirming again changes it (the rules allow that).
-  String? _done;
+  /// What the server already has from this player this turn, per action:
+  /// a target id, or '' for a skipped vote. The same choice can't be sent
+  /// twice; picking someone else and confirming again changes it (the
+  /// rules allow that).
+  final _done = <String, String>{};
+
+  /// The Don's pick between shooting and checking; null before they chose.
+  String? _donMode;
 
   /// The current turn; the pick is cleared whenever it changes.
   String get _turn =>
       '${widget.state.matchId}/${widget.state.round}/${widget.state.phase.name}';
   late String _lastTurn = _turn;
 
-  /// The one action this player may take now, if any.
+  List<String> get _allowed => widget.private?.allowedActions ?? const [];
+
+  /// The Don may both shoot and look for the Detective at night.
+  bool get _donChoice =>
+      _allowed.contains('nightKill') && _allowed.contains('nightCheck');
+
+  /// The one action this player is picking for now, if any.
   String? get _action {
-    final allowed = widget.private?.allowedActions ?? const [];
+    if (_donChoice) {
+      return _donMode ??
+          (_done.containsKey('nightKill') ? 'nightCheck' : 'nightKill');
+    }
     const order = ['nightKill', 'nightHeal', 'nightCheck', 'castVote'];
     for (final a in order) {
-      if (allowed.contains(a)) return a;
+      if (_allowed.contains(a)) return a;
     }
     return null;
+  }
+
+  @override
+  void didUpdateWidget(MatchView old) {
+    super.didUpdateWidget(old);
+    // The server said no: nothing counts as sent any more.
+    if (widget.refusals != old.refusals) _done.clear();
   }
 
   Set<UserId> _targets(String? action) {
     final me = widget.me;
     final mates = widget.private?.teammates ?? const [];
-    final checks = widget.private?.checks ?? const {};
+    final checks = {
+      ...?widget.private?.checks,
+      ...?widget.private?.detectiveChecks,
+    };
     final alive = widget.state.alive.map((p) => p.userId);
     return switch (action) {
       'nightKill' => {
@@ -80,7 +108,7 @@ class _MatchViewState extends State<MatchView> {
       'nightHeal' => alive.toSet(),
       'nightCheck' => {
         for (final u in alive)
-          if (u != me && !checks.containsKey(u)) u,
+          if (u != me && !mates.contains(u) && !checks.containsKey(u)) u,
       },
       'castVote' => {
         for (final u in alive)
@@ -110,7 +138,18 @@ class _MatchViewState extends State<MatchView> {
       } else {
         await widget.onNightAction(action, choice);
       }
-      if (mounted && _turn == _lastTurn) setState(() => _done = choice);
+      if (mounted && _turn == _lastTurn) {
+        setState(() {
+          _done[action] = choice;
+          // The Don goes on to the check once the shot is in.
+          if (_donChoice &&
+              action == 'nightKill' &&
+              !_done.containsKey('nightCheck')) {
+            _donMode = 'nightCheck';
+            _selected = null;
+          }
+        });
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -128,7 +167,8 @@ class _MatchViewState extends State<MatchView> {
     if (_turn != _lastTurn) {
       _lastTurn = _turn;
       _selected = null;
-      _done = null;
+      _done.clear();
+      _donMode = null;
     }
     final s = widget.state;
     final action = _action;
@@ -254,15 +294,31 @@ class _MatchViewState extends State<MatchView> {
                       )
                     : null)
               : _ActionBar(
+                  modes: _donChoice
+                      ? _DonModes(
+                          mode: action,
+                          shot: _done['nightKill'],
+                          checked: _done['nightCheck'],
+                          nameOf: _name,
+                          onChanged: (m) => setState(() {
+                            _donMode = m;
+                            _selected = _done[m];
+                          }),
+                        )
+                      : null,
                   confirmText: _selected == null
                       ? t.gameConfirm
-                      : _selected == _done
+                      : _selected == _done[action]
                       ? t.gameConfirmed(_name(_selected!))
                       : '${t.gameConfirm}: ${_name(_selected!)}',
-                  onConfirm: _selected == null || _sending || _selected == _done
+                  onConfirm:
+                      _selected == null ||
+                          _sending ||
+                          _selected == _done[action]
                       ? null
                       : () => _confirm(action),
-                  onSkip: action == 'castVote' && !_sending && _done != ''
+                  onSkip:
+                      action == 'castVote' && !_sending && _done[action] != ''
                       ? () => _confirm(action, skip: true)
                       : null,
                   skipText: t.gameSkipVote,
@@ -283,10 +339,17 @@ class _MatchViewState extends State<MatchView> {
           : t.gameLastWordListen(_name(s.lastWordBy!));
     }
     if (!_meAlive) return t.gameDeadSpectator;
-    if (action != null && _done != null) return t.gameActionSent;
-    return switch ((widget.state.phase, action)) {
+    var next = action;
+    if (action != null && _done.containsKey(action)) {
+      // The Don still has the other pick to make.
+      final other = action == 'nightKill' ? 'nightCheck' : 'nightKill';
+      if (!_donChoice || _done.containsKey(other)) return t.gameActionSent;
+      next = other;
+    }
+    return switch ((widget.state.phase, next)) {
       (_, 'nightKill') => t.gameNightKillPrompt,
       (_, 'nightHeal') => t.gameNightHealPrompt,
+      (_, 'nightCheck') when _donChoice => t.gameNightDonCheckPrompt,
       (_, 'nightCheck') => t.gameNightCheckPrompt,
       (_, 'castVote') => t.gameVotePrompt,
       (GamePhase.night, _) => t.gameNightSleep,
@@ -507,14 +570,62 @@ class _BottomBar extends StatelessWidget {
   }
 }
 
+/// The Don's two night picks: shoot, and look for the Detective. Each
+/// shows a tick once it is sent.
+class _DonModes extends StatelessWidget {
+  const _DonModes({
+    required this.mode,
+    required this.shot,
+    required this.checked,
+    required this.nameOf,
+    required this.onChanged,
+  });
+
+  final String mode;
+  final String? shot;
+  final String? checked;
+  final String Function(UserId) nameOf;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    Widget chip(String value, IconData icon, String label, String? sent) =>
+        Expanded(
+          child: ChoiceChip(
+            key: ValueKey('don-$value'),
+            selected: mode == value,
+            showCheckmark: false,
+            avatar: Icon(sent != null ? Icons.check_circle_rounded : icon),
+            label: Text(
+              sent != null ? '$label: ${nameOf(sent)}' : label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            onSelected: (_) => onChanged(value),
+          ),
+        );
+    return Row(
+      spacing: 8,
+      children: [
+        chip('nightKill', Icons.gps_fixed_rounded, t.gameDonShoot, shot),
+        chip('nightCheck', Icons.search_rounded, t.gameDonCheck, checked),
+      ],
+    );
+  }
+}
+
 class _ActionBar extends StatelessWidget {
   const _ActionBar({
+    this.modes,
     required this.confirmText,
     required this.onConfirm,
     required this.onSkip,
     required this.skipText,
   });
 
+  /// Shown above the buttons when the player has more than one pick.
+  final Widget? modes;
   final String confirmText;
   final VoidCallback? onConfirm;
   final VoidCallback? onSkip;
@@ -522,7 +633,7 @@ class _ActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final row = Row(
       spacing: 10,
       children: [
         if (onSkip != null)
@@ -549,6 +660,12 @@ class _ActionBar extends StatelessWidget {
           ),
         ),
       ],
+    );
+    if (modes == null) return row;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 10,
+      children: [modes!, row],
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/config.dart';
 import '../../core/providers.dart';
+import '../rooms/data/http_room_repository.dart';
 import 'demo/demo_match.dart';
 
 /// The live room, its public table state, my private state and the match
@@ -28,6 +29,13 @@ final chatProvider = StreamProvider.autoDispose
     .family<List<ChatMessage>, RoomId>(
       (ref, id) => ref.watch(roomRepositoryProvider).watchChat(id),
     );
+
+/// Refusals the server sends back on the socket, e.g. a Start with too
+/// few players or a Doctor saving the same player twice.
+final roomErrorsProvider = StreamProvider.autoDispose<SocketError>((ref) {
+  final repo = ref.watch(roomRepositoryProvider);
+  return repo is HttpRoomRepository ? repo.errors : const Stream.empty();
+});
 
 final matchEndProvider = StreamProvider.autoDispose.family<MatchResult, RoomId>(
   (ref, id) => ref.watch(roomRepositoryProvider).watchMatchEnd(id),

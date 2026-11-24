@@ -89,14 +89,21 @@ final class CastVote extends GameAction {
 }
 
 /// A living player agrees to end the current timer early (the day's
-/// discussion, or the role reveal). The phase ends only once every living
-/// player has agreed, so one player can never skip for everyone. During
+/// discussion, or the role reveal). The phase ends once more than half of
+/// the living players agree ([SkipPhase.needed]: 3 of 4, 3 of 5, 4 of 7),
+/// so slow players can't hold everyone up, and nobody can skip alone.
+/// During
 /// [GamePhase.lastWord] only the speaker may send it, and it ends their
 /// last word at once ("I'm done").
 /// [skip] false takes the player's agreement back.
 final class SkipPhase extends GameAction {
   const SkipPhase({required super.actorId, this.skip = true});
   final bool skip;
+
+  /// How many of [alive] living players must agree to end the timer
+  /// early: more than half. Change it here: the engine and the app both
+  /// read it.
+  static int needed(int alive) => alive <= 0 ? 0 : alive ~/ 2 + 1;
   @override
   String get type => 'skipPhase';
   @override

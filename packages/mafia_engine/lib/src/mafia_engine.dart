@@ -537,13 +537,14 @@ class MafiaEngine implements GameEngine {
     return _maybeSkip(next, now) ?? Accepted(next);
   }
 
-  /// Ends the phase now if every living player has agreed to skip.
+  /// Ends the phase now if more than half of the living players have agreed
+  /// to skip (`SkipPhase.needed`).
   ApplyResult? _maybeSkip(GameState s, DateTime now) {
     final pub = s.public;
     if (!_skippable(pub.phase)) return null;
     final alive = pub.alive.toList();
-    if (alive.isEmpty ||
-        !alive.every((p) => pub.skipVotes.contains(p.userId))) {
+    final agreed = alive.where((p) => pub.skipVotes.contains(p.userId));
+    if (alive.isEmpty || agreed.length < SkipPhase.needed(alive.length)) {
       return null;
     }
     final skipped = _copy(

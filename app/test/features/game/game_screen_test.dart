@@ -268,7 +268,10 @@ void main() {
       );
     await tester.pumpAndSettle();
 
-    expect(find.text('Skip timer · 2/$alive'), findsOneWidget);
+    expect(
+      find.text('Skip timer · 2/${SkipPhase.needed(alive)}'),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const ValueKey('skip-timer')));
     await tester.pump();
     expect((repo.sent.single as SkipPhase).skip, isTrue);
@@ -277,7 +280,10 @@ void main() {
       _state(GamePhase.day, skipVotes: const ['user_1', 'user_2', 'user_0']),
     );
     await tester.pumpAndSettle();
-    expect(find.text('You want to skip · 3/$alive'), findsOneWidget);
+    expect(
+      find.text('You want to skip · 3/${SkipPhase.needed(alive)}'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Undo'));
     await tester.pump();
     expect((repo.sent.last as SkipPhase).skip, isFalse);

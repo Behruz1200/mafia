@@ -12,6 +12,8 @@ import '../../core/routes.dart';
 import '../../core/theme.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../game/ui/game_style.dart';
+import '../game/ui/game_text.dart';
+import '../rooms/data/http_room_repository.dart';
 import '../shop/data/http_wallet_repository.dart';
 import 'widgets/create_room_sheet.dart';
 import 'widgets/join_code_dialog.dart';
@@ -104,13 +106,16 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     try {
       final room = await action();
       if (mounted) _go(room);
-    } catch (_) {
+    } catch (e) {
       // Most likely still seated in a running game: go back to it.
       if (await _resume()) return;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).lobbyError)),
-        );
+        final t = AppLocalizations.of(context);
+        final text = e is RoomRequestFailed
+            ? t.errorText(e.error.code, fallback: t.lobbyError) ?? t.lobbyError
+            : t.lobbyError;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(text)));
       }
     } finally {
       if (mounted) setState(() => _busy = false);

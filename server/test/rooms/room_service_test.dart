@@ -395,6 +395,63 @@ void main() {
       });
     });
 
+    test('a seated player who is offline is not dealt into the next match', () {
+      fake((a) {
+        final rig = Rig(coins: {for (final u in users) u: 500});
+        final room = fill(rig, a, n: 5, settings: staked(100));
+        // u4 closed the app; their seat waits out the reconnect grace.
+        rig.sockets['u4']!.close();
+        a.elapse(const Duration(seconds: 15));
+        start(rig, a, room);
+
+        final pub = rig.service.publicState(room.id)!;
+        expect(pub.players.map((p) => p.userId), ['u0', 'u1', 'u2', 'u3']);
+        expect(rig.wallet.availableOf('u4'), 500, reason: 'no stake held');
+
+        // Once the grace is over they leave the room, not the match.
+        a.elapse(const Duration(seconds: 50));
+        expect(rig.service.room(room.id)!.memberIds, isNot(contains('u4')));
+        expect(rig.service.room(room.id)!.status, RoomStatus.inMatch);
+        expect(rig.wallet.availableOf('u4'), 500);
+        rig.service.dispose();
+      });
+    });
+
+    test('a player reloading the page still gets a card', () {
+      fake((a) {
+        final rig = Rig();
+        final room = fill(rig, a, n: 5);
+        rig.sockets['u4']!.close();
+        a.elapse(const Duration(seconds: 3));
+        start(rig, a, room);
+        final pub = rig.service.publicState(room.id)!;
+        expect(pub.players.map((p) => p.userId), contains('u4'));
+        rig.service.dispose();
+      });
+    });
+
+    test('Start is refused when too few seated players are online', () {
+      fake((a) {
+        final rig = Rig();
+        final room = fill(rig, a);
+        rig.sockets['u3']!.close();
+        a.elapse(const Duration(seconds: 10));
+        Object? err;
+        rig.service
+            .act('u0', room.id, const StartMatch(actorId: 'u0'))
+            .then(
+              (_) {},
+              onError: (Object e) {
+                err = e;
+              },
+            );
+        a.flushMicrotasks();
+        expect(err, roomError('not_enough_players'));
+        expect(rig.service.room(room.id)!.status, RoomStatus.open);
+        rig.service.dispose();
+      });
+    });
+
     test('a match that runs too long is cancelled and refunded', () {
       fake((a) {
         final rig = Rig(
