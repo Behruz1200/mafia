@@ -192,8 +192,10 @@ class _Rng {
 }
 
 /// A row of buildings with lit windows, standing on the bottom of [area].
-void paintSkyline(
-  Canvas canvas,
+/// Returns the lit windows (in [area]'s coordinates' parent space). With no
+/// [canvas] it only works out where they are.
+List<Rect> paintSkyline(
+  Canvas? canvas,
   Rect area, {
   int seed = 7,
   Color fill = NoirArt.ink,
@@ -205,21 +207,22 @@ void paintSkyline(
   final r = _Rng(seed);
   final body = Paint()..color = fill;
   final window = Paint();
+  final windows = <Rect>[];
   final w = area.width, h = area.height;
   var x = -4.0;
   canvas
-    ..save()
+    ?..save()
     ..translate(area.left, area.top);
   while (x < w) {
     final bw = 18 + r() * 34;
     final bh = h * (minH + r() * (maxH - minH));
     final top = h - bh;
-    canvas.drawRect(Rect.fromLTWH(x, top, bw, bh + 2), body);
+    canvas?.drawRect(Rect.fromLTWH(x, top, bw, bh + 2), body);
     if (r() < 0.35) {
       if (r() < 0.5) {
-        canvas.drawRect(Rect.fromLTWH(x + bw / 2 - 1, top - 14, 2, 14), body);
+        canvas?.drawRect(Rect.fromLTWH(x + bw / 2 - 1, top - 14, 2, 14), body);
       } else {
-        canvas.drawPath(
+        canvas?.drawPath(
           svgPath('M6 0 l2 -6 h10 l2 6 z M7 -6 h12 v-8 q-6 -4 -12 0 z')
               .shift(Offset(x, top)),
           body,
@@ -230,14 +233,20 @@ void paintSkyline(
       for (var wx = x + 5; wx < x + bw - 6; wx += 7) {
         if (r() < litChance) {
           final c = lit[(r() * lit.length).floor()];
-          window.color = c.withValues(alpha: 0.9 * (0.55 + r() * 0.45));
-          canvas.drawRect(Rect.fromLTWH(wx, wy, 3.2, 4.4), window);
+          final a = 0.9 * (0.55 + r() * 0.45);
+          final rect = Rect.fromLTWH(wx, wy, 3.2, 4.4);
+          windows.add(rect.shift(area.topLeft));
+          if (canvas != null) {
+            window.color = c.withValues(alpha: a);
+            canvas.drawRect(rect, window);
+          }
         }
       }
     }
     x += bw + (r() < 0.3 ? 2 : 0);
   }
-  canvas.restore();
+  canvas?.restore();
+  return windows;
 }
 
 /// Thin slanted rain streaks.
@@ -302,13 +311,20 @@ void _paintPaths(Canvas canvas, List<String> paths, Paint paint) {
 
 /// A rainy night street: moon, two rows of buildings, and a man in a fedora
 /// waiting under a street lamp. Fills whatever box it gets.
-class NightCity extends StatelessWidget {
+///
+/// With [animate] the scene is alive: rain falls and splashes on the street,
+/// clouds drift over the moon, a few windows switch on and off, and the
+/// street lamp flickers now and then while the man's rim of light breathes.
+/// Everything loops every [_loop] without a jump. It stays still when the
+/// phone asks for less motion, and the still parts are painted only once.
+class NightCity extends StatefulWidget {
   const NightCity({
     super.key,
     this.figure = true,
     this.moon = const Alignment(-0.6, -0.5),
     this.lampAt = 0.6,
     this.shadeLeft = true,
+    this.animate = false,
   });
 
   /// Draw the street lamp and the man under it.
@@ -323,22 +339,84 @@ class NightCity extends StatelessWidget {
   /// Darken the left and bottom so white text there reads well.
   final bool shadeLeft;
 
+  /// Bring the scene to life (see above).
+  final bool animate;
+
+  /// Off in widget tests (see test/flutter_test_config.dart): a scene that
+  /// never stops moving never lets a test "settle".
+  static bool animationsEnabled = true;
+
   @override
-  Widget build(BuildContext context) => RepaintBoundary(
-    child: CustomPaint(
-      painter: _NightCityPainter(
-        figure: figure,
-        moon: moon,
-        lampAt: lampAt,
-        shadeLeft: shadeLeft,
-      ),
-      child: const SizedBox.expand(),
-    ),
-  );
+  State<NightCity> createState() => _NightCityState();
 }
 
-class _NightCityPainter extends CustomPainter {
-  _NightCityPainter({
+const _loop = Duration(seconds: 24);
+
+class _NightCityState extends State<NightCity>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _clock;
+
+  bool get _wantsMotion =>
+      widget.animate &&
+      NightCity.animationsEnabled &&
+      !(MediaQuery.maybeDisableAnimationsOf(context) ?? false);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(NightCity old) {
+    super.didUpdateWidget(old);
+    _sync();
+  }
+
+  void _sync() {
+    if (_wantsMotion) {
+      _clock ??= AnimationController(vsync: this, duration: _loop)..repeat();
+    } else {
+      _clock?.dispose();
+      _clock = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _clock?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scene = _Scene(
+      figure: widget.figure,
+      moon: widget.moon,
+      lampAt: widget.lampAt,
+      shadeLeft: widget.shadeLeft,
+    );
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        RepaintBoundary(child: CustomPaint(painter: _StillPainter(scene))),
+        RepaintBoundary(
+          child: CustomPaint(
+            painter: _LivePainter(
+              scene,
+              _clock ?? const AlwaysStoppedAnimation(0.3),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// What a night city scene shows.
+@immutable
+class _Scene {
+  const _Scene({
     required this.figure,
     required this.moon,
     required this.lampAt,
@@ -349,6 +427,33 @@ class _NightCityPainter extends CustomPainter {
   final Alignment? moon;
   final double lampAt;
   final bool shadeLeft;
+
+  double moonRadius(Size size) => min(30, size.height * 0.13);
+
+  Rect frontRow(Size size) =>
+      Rect.fromLTWH(0, size.height * 0.42, size.width, size.height * 0.58);
+
+  @override
+  bool operator ==(Object other) =>
+      other is _Scene &&
+      other.figure == figure &&
+      other.moon == moon &&
+      other.lampAt == lampAt &&
+      other.shadeLeft == shadeLeft;
+
+  @override
+  int get hashCode => Object.hash(figure, moon, lampAt, shadeLeft);
+}
+
+const _frontSeed = 5;
+const _frontFill = Color(0xFF0B0614);
+const _frontChance = 0.2;
+
+/// Sky, moon, buildings, street and lamp post: painted once.
+class _StillPainter extends CustomPainter {
+  _StillPainter(this.scene);
+
+  final _Scene scene;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -366,8 +471,8 @@ class _NightCityPainter extends CustomPainter {
             stops: NoirArt.skyStops,
           ).createShader(all),
       );
-    if (moon case final moon?) {
-      _paintMoon(canvas, moon.withinRect(all), min(30, h * 0.13));
+    if (scene.moon case final moon?) {
+      _paintMoon(canvas, moon.withinRect(all), scene.moonRadius(size));
     }
     paintSkyline(
       canvas,
@@ -381,11 +486,11 @@ class _NightCityPainter extends CustomPainter {
     );
     paintSkyline(
       canvas,
-      Rect.fromLTWH(0, h * 0.42, w, h * 0.58),
-      seed: 5,
-      fill: const Color(0xFF0B0614),
+      scene.frontRow(size),
+      seed: _frontSeed,
+      fill: _frontFill,
       lit: const [Palette.gold, Color(0xFFFF9F43), Palette.cyan],
-      litChance: 0.2,
+      litChance: _frontChance,
       minH: 0.3,
       maxH: 0.9,
     );
@@ -399,9 +504,8 @@ class _NightCityPainter extends CustomPainter {
         Rect.fromLTWH(0, h - 26, w, 1.5),
         Paint()..color = Palette.accent.withValues(alpha: 0.5),
       );
-    if (figure) _paintLampAndFigure(canvas, size);
-    paintRain(canvas, size, seed: 9, count: 70);
-    if (shadeLeft) {
+    if (scene.figure) _paintPost(canvas, size);
+    if (scene.shadeLeft) {
       canvas
         ..drawRect(
           all,
@@ -431,49 +535,10 @@ class _NightCityPainter extends CustomPainter {
     }
   }
 
-  void _paintLampAndFigure(Canvas canvas, Size size) {
-    final w = size.width, h = size.height;
-    final lx = w * lampAt;
+  void _paintPost(Canvas canvas, Size size) {
+    final h = size.height;
+    final lx = size.width * scene.lampAt;
     final lampTop = h * 0.2;
-    // Light cone and the pool of light on the street.
-    final cone = Path()
-      ..moveTo(lx, lampTop)
-      ..lineTo(lx - w * 0.16, h - 8)
-      ..lineTo(lx + w * 0.24, h - 8)
-      ..close();
-    canvas
-      ..drawPath(
-        cone,
-        Paint()
-          ..shader = RadialGradient(
-            center: Alignment.topCenter,
-            radius: 1,
-            colors: [
-              const Color(0xFFFFD98A).withValues(alpha: 0.55),
-              const Color(0xFFFFB547).withValues(alpha: 0.08),
-              const Color(0x00FFB547),
-            ],
-            stops: const [0, 0.7, 1],
-          ).createShader(cone.getBounds()),
-      )
-      ..drawOval(
-        Rect.fromCenter(center: Offset(lx + 4, h - 12), width: 140, height: 18),
-        Paint()
-          ..shader =
-              RadialGradient(
-                colors: [
-                  const Color(0xFFFFC56B).withValues(alpha: 0.55),
-                  const Color(0x00FFC56B),
-                ],
-              ).createShader(
-                Rect.fromCenter(
-                  center: Offset(lx + 4, h - 12),
-                  width: 140,
-                  height: 18,
-                ),
-              ),
-      );
-    // The lamp post.
     final post = Paint()..color = const Color(0xFF05030A);
     canvas
       ..drawRect(Rect.fromLTWH(lx + 18, lampTop, 4, h * 0.8), post)
@@ -495,18 +560,195 @@ class _NightCityPainter extends CustomPainter {
           ..relativeLineTo(-10, 0)
           ..close(),
         post,
+      );
+  }
+
+  @override
+  bool shouldRepaint(_StillPainter old) => old.scene != scene;
+}
+
+/// Everything that moves: clouds, windows, lamp light, the man, rain.
+/// Painted at time [clock] (0 to 1 through the loop).
+class _LivePainter extends CustomPainter {
+  _LivePainter(this.scene, this.clock) : super(repaint: clock);
+
+  final _Scene scene;
+  final Animation<double> clock;
+
+  Size? _laidOutFor;
+  List<_Twinkle> _twinkles = const [];
+  List<_Drop> _drops = const [];
+
+  static final _loopSeconds = _loop.inMilliseconds / 1000;
+
+  void _layout(Size size) {
+    if (_laidOutFor == size) return;
+    _laidOutFor = size;
+    // A few of the lit windows in the front row switch off and on.
+    final windows = paintSkyline(
+      null,
+      scene.frontRow(size),
+      seed: _frontSeed,
+      litChance: _frontChance,
+      minH: 0.3,
+      maxH: 0.9,
+    );
+    final r = _Rng(77);
+    const periods = [6.0, 8.0, 12.0, 24.0];
+    _twinkles = [
+      for (var i = 0; i < min(windows.length, 3 + size.width ~/ 90); i++)
+        _Twinkle(
+          windows[(r() * windows.length).floor()],
+          periods[(r() * periods.length).floor()],
+          r(),
+        ),
+    ];
+    // Rain: about one drop per 1,800 square points. Each drop falls a whole
+    // number of times per loop, so the loop has no jump.
+    final rr = _Rng(9);
+    final n = max(70, (size.width * size.height / 1800).round());
+    _drops = [
+      for (var i = 0; i < n; i++)
+        _Drop(
+          x: rr() * (size.width + 60) - 20,
+          y: rr() * size.height,
+          length: 8 + rr() * 14,
+          laps: 36 + (rr() * 16).floor(),
+          alpha: 0.3 * (0.4 + rr() * 0.6),
+        ),
+    ];
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    _layout(size);
+    final t = clock.value * _loopSeconds; // seconds into the loop
+    canvas.clipRect(Offset.zero & size);
+    if (scene.moon case final moon?) _paintClouds(canvas, size, moon, t);
+    _paintWindows(canvas, t);
+    if (scene.figure) _paintLampAndFigure(canvas, size, t);
+    _paintRain(canvas, size, t);
+  }
+
+  void _paintClouds(Canvas canvas, Size size, Alignment moon, double t) {
+    final c = moon.withinRect(Offset.zero & size);
+    final r = scene.moonRadius(size);
+    final paint = Paint()
+      ..color = const Color(0xFF2A1238).withValues(alpha: 0.6)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.25);
+    // Two soft clouds sliding left to right across the moon's height, each
+    // crossing the whole width once (or twice) per loop.
+    for (final (laps, dy, scale, offset) in const [
+      (1, -0.35, 1.0, 0.15),
+      (2, 0.45, 0.7, 0.6),
+    ]) {
+      final span = size.width + r * 8;
+      final x = (offset + t / _loopSeconds * laps) % 1 * span - r * 4;
+      final y = c.dy + dy * r * 2;
+      final cw = r * 3.2 * scale;
+      canvas
+        ..drawOval(
+          Rect.fromCenter(center: Offset(x, y), width: cw, height: cw * 0.32),
+          paint,
+        )
+        ..drawOval(
+          Rect.fromCenter(
+            center: Offset(x + cw * 0.28, y - cw * 0.08),
+            width: cw * 0.6,
+            height: cw * 0.28,
+          ),
+          paint,
+        );
+    }
+  }
+
+  void _paintWindows(Canvas canvas, double t) {
+    final off = Paint();
+    for (final w in _twinkles) {
+      final phase = (t / w.period + w.phase) % 1;
+      // Off for a stretch of each cycle, fading quickly in and out.
+      final dark = phase < 0.55
+          ? 0.0
+          : phase < 0.6
+          ? (phase - 0.55) / 0.05
+          : phase < 0.9
+          ? 1.0
+          : (1 - phase) / 0.1;
+      if (dark <= 0) continue;
+      off.color = _frontFill.withValues(alpha: dark.clamp(0, 1));
+      canvas.drawRect(w.rect.inflate(0.5), off);
+    }
+  }
+
+  /// 1 when the lamp burns steadily; dips while it flickers, twice a loop.
+  static double _lampLevel(double t) {
+    for (final (start, end) in const [(5.0, 5.7), (16.2, 16.6)]) {
+      if (t >= start && t <= end) {
+        final buzz = (sin(t * 47) * sin(t * 31)).abs();
+        return 0.25 + 0.75 * buzz;
+      }
+    }
+    return 1;
+  }
+
+  void _paintLampAndFigure(Canvas canvas, Size size, double t) {
+    final w = size.width, h = size.height;
+    final lx = w * scene.lampAt;
+    final lampTop = h * 0.2;
+    final lamp = _lampLevel(t);
+    // Light cone and the pool of light on the street.
+    final cone = Path()
+      ..moveTo(lx, lampTop)
+      ..lineTo(lx - w * 0.16, h - 8)
+      ..lineTo(lx + w * 0.24, h - 8)
+      ..close();
+    final pool = Rect.fromCenter(
+      center: Offset(lx + 4, h - 12),
+      width: 140,
+      height: 18,
+    );
+    canvas
+      ..drawPath(
+        cone,
+        Paint()
+          ..shader = RadialGradient(
+            center: Alignment.topCenter,
+            radius: 1,
+            colors: [
+              const Color(0xFFFFD98A).withValues(alpha: 0.55 * lamp),
+              const Color(0xFFFFB547).withValues(alpha: 0.08 * lamp),
+              const Color(0x00FFB547),
+            ],
+            stops: const [0, 0.7, 1],
+          ).createShader(cone.getBounds()),
+      )
+      ..drawOval(
+        pool,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              const Color(0xFFFFC56B).withValues(alpha: 0.55 * lamp),
+              const Color(0x00FFC56B),
+            ],
+          ).createShader(pool),
       )
       ..drawOval(
         Rect.fromCenter(center: Offset(lx - 4, lampTop), width: 18, height: 8),
         Paint()
-          ..color = const Color(0xFFFFE3A3)
+          ..color = const Color(0xFFFFE3A3).withValues(alpha: lamp)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
       )
       ..drawOval(
         Rect.fromCenter(center: Offset(lx - 4, lampTop), width: 10, height: 4),
-        Paint()..color = const Color(0xFFFFF6DA),
+        Paint()
+          ..color = Color.lerp(
+            const Color(0xFF6B5A3A),
+            const Color(0xFFFFF6DA),
+            lamp,
+          )!,
       );
-    // The man, with a red rim of light, and his shadow.
+    // The man, with a red rim of light that slowly breathes, and his shadow.
+    final breath = 0.75 + 0.25 * sin(t / 4 * 2 * pi);
     final s = min(0.92, (h - 20) / 210);
     canvas.drawOval(
       Rect.fromCenter(center: Offset(lx - 4, h - 13), width: 80, height: 10),
@@ -520,19 +762,83 @@ class _NightCityPainter extends CustomPainter {
       canvas,
       _figure,
       Paint()
-        ..color = Palette.accent.withValues(alpha: 0.95)
+        ..color = Palette.accent.withValues(
+          alpha: 0.95 * breath * (0.55 + 0.45 * lamp),
+        )
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, 5 / s),
     );
     _paintPaths(canvas, _figure, Paint()..color = NoirArt.ink);
     canvas.restore();
   }
 
+  void _paintRain(Canvas canvas, Size size, double t) {
+    final h = size.height;
+    final fall = h + 40;
+    final p = Paint()..strokeWidth = 1;
+    const color = Color(0xFFFFD9E2);
+    for (final d in _drops) {
+      final travelled = t / _loopSeconds * d.laps * fall;
+      final y = (d.y + travelled) % fall - 30;
+      // Slanted: the drop drifts left as it falls.
+      final x = d.x - (y + 30) * 0.28;
+      p.color = color.withValues(alpha: d.alpha);
+      canvas.drawLine(
+        Offset(x, y),
+        Offset(x - d.length * 0.28, y + d.length),
+        p,
+      );
+    }
+    // Splashes on the wet street.
+    final splash = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    final slots = 4 + size.width ~/ 60;
+    const periods = [0.8, 1.0, 1.2, 1.5, 2.0];
+    for (var i = 0; i < slots; i++) {
+      final period = periods[i % periods.length];
+      final cycle = t / period + i * 0.37;
+      final k = cycle.floor();
+      final phase = cycle - k;
+      final x = _Rng(i * 7919 + k)() * size.width;
+      final y = h - 6 - _Rng(i * 104729 + k)() * 16;
+      final grow = phase;
+      splash.color = color.withValues(alpha: 0.35 * (1 - grow));
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(x, y),
+          width: 2 + grow * 10,
+          height: 1 + grow * 3,
+        ),
+        splash,
+      );
+    }
+  }
+
   @override
-  bool shouldRepaint(_NightCityPainter old) =>
-      old.figure != figure ||
-      old.moon != moon ||
-      old.lampAt != lampAt ||
-      old.shadeLeft != shadeLeft;
+  bool shouldRepaint(_LivePainter old) =>
+      old.scene != scene || old.clock != clock;
+}
+
+class _Twinkle {
+  const _Twinkle(this.rect, this.period, this.phase);
+  final Rect rect;
+  final double period;
+  final double phase;
+}
+
+class _Drop {
+  const _Drop({
+    required this.x,
+    required this.y,
+    required this.length,
+    required this.laps,
+    required this.alpha,
+  });
+  final double x;
+  final double y;
+  final double length;
+  final int laps;
+  final double alpha;
 }
 
 /// Faint buildings along the bottom of a screen.
