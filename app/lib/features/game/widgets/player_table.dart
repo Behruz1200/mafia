@@ -73,6 +73,7 @@ class PlayerTable extends StatelessWidget {
               isMe: p.userId == me,
               isTeammate: private?.teammates.contains(p.userId) ?? false,
               checked: private?.checks[p.userId],
+              detective: private?.detectiveChecks[p.userId],
               votes: tally[p.userId] ?? 0,
               myVote: me != null && votes[me] == p.userId,
               selectable: selectable.contains(p.userId),
@@ -98,6 +99,7 @@ class SeatTile extends StatelessWidget {
     this.isMe = false,
     this.isTeammate = false,
     this.checked,
+    this.detective,
     this.votes = 0,
     this.myVote = false,
     this.selectable = false,
@@ -112,6 +114,9 @@ class SeatTile extends StatelessWidget {
   final bool isMe;
   final bool isTeammate;
   final Team? checked;
+
+  /// The Don's check of this player: true if they are the Detective.
+  final bool? detective;
   final int votes;
   final bool myVote;
   final bool selectable;
@@ -170,6 +175,11 @@ class SeatTile extends StatelessWidget {
 
     final tag = checked != null
         ? _Tag(text: t.teamName(checked!), color: GameStyle.teamColor(checked!))
+        : detective != null
+        ? _Tag(
+            text: detective! ? t.roleName(Role.detective) : t.gameNotDetective,
+            color: detective! ? GameStyle.town : Palette.surfaceHigh,
+          )
         : isTeammate
         ? _Tag(text: t.gameTeamMafia, color: Palette.accent)
         : !player.isConnected

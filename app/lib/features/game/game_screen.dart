@@ -8,7 +8,10 @@ import '../../core/top_bar_buttons.dart';
 import '../../core/routes.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../call/call_providers.dart';
+import '../../core/providers.dart';
+import '../rooms/data/http_room_repository.dart';
 import 'game_providers.dart';
+import 'ui/game_text.dart';
 import 'ui/game_style.dart';
 import 'widgets/match_view.dart';
 import 'widgets/phase_header.dart';
@@ -34,11 +37,41 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   /// room again.
   MatchId? _dismissedMatch;
 
+  /// How many of my actions the server has refused, so the table can let
+  /// me pick again.
+  int _refusals = 0;
+
+  void _onRefused(SocketError e) {
+    final t = AppLocalizations.of(context);
+    if (!e.code.startsWith('chat_')) setState(() => _refusals++);
+    final text = t.errorText(e.code, fallback: t.errorNotSent);
+    if (text == null) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  late final AppLifecycleListener _lifecycle;
+
   @override
   void initState() {
     super.initState();
     // Remember the room, so a reload or restart brings the player back.
     ref.read(lastRoomStoreProvider).write(widget.roomId);
+    // Back from the lock screen or another app: reconnect at once, so the
+    // seat is not lost to the 60-second away rule.
+    _lifecycle = AppLifecycleListener(
+      onResume: () {
+        final repo = ref.read(roomRepositoryProvider);
+        if (repo is HttpRoomRepository) repo.wake();
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
   }
 
   /// Asks the server again for the room, the table and my card, and
@@ -110,6 +143,10 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     final private = ref.watch(myStateProvider(id)).value;
     final result = ref.watch(matchEndProvider(id)).value;
     final isDemo = actions.demo != null;
+    ref.listen(roomErrorsProvider, (_, next) {
+      final e = next.value;
+      if (e != null) _onRefused(e);
+    });
     // The call lives as long as this screen, so players can see and hear
     // each other in the waiting room and stay connected into the match.
     ref.watch(callSessionProvider(id));
@@ -125,7 +162,9 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     } else if (showWaiting) {
       body = WaitingRoom(
         room: room,
-        players: public?.players,
+        // After Play again the last match's table is still the latest
+        // state; the waiting room shows who is seated now instead.
+        players: public?.phase == GamePhase.lobby ? public!.players : null,
         me: me,
         onStart: actions.startMatch,
       );
@@ -156,6 +195,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         onNightAction: actions.nightAction,
         onVote: actions.vote,
         onSkipTimer: (skip) => actions.skipTimer(skip: skip),
+        refusals: _refusals,
       );
     }
 

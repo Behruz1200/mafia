@@ -47,11 +47,39 @@ extension GameText on AppLocalizations {
         EliminationCause.leftMatch => gameEventLeft(name),
         null => null,
       },
+      'playerLeft' => gameEventLeft(name),
       'nobodyDied' => gameEventNobodyDied,
       'voteTied' => gameEventVoteTied,
+      'nobodyVotedOut' => gameEventNobodyVotedOut,
       'phaseSkipped' => gameEventPhaseSkipped,
       'lastWord' when e.text != null => gameEventLastWord(name, e.text!),
       _ => null,
     };
   }
+
+  /// What to tell the player when the server refused something, by its
+  /// stable error code, else [fallback]. Null for refusals that only
+  /// happen when the phase moved on just as they tapped; those need no
+  /// message.
+  String? errorText(String code, {String? fallback}) => switch (code) {
+    'room_not_found' => errorRoomNotFound,
+    'room_full' => errorRoomFull,
+    'room_in_match' => errorRoomInMatch,
+    'already_in_match' => errorAlreadyInMatch,
+    'not_enough_players' => errorNotEnoughPlayers,
+    'not_host' => errorNotHost,
+    'stakes_not_allowed' => errorStakesNotAllowed,
+    'insufficient_coins' => lobbyNotEnoughCoins,
+    'not_in_room' => errorNotInRoom,
+    'server_busy' => errorServerBusy,
+    'chat_too_fast' => errorChatTooFast,
+    'chat_closed' => errorChatClosed,
+    'same_heal_twice' => errorSameHealTwice,
+    'self_heal_used' => errorSelfHealUsed,
+    'already_checked' => errorAlreadyChecked,
+    'target_teammate' => errorTargetTeammate,
+    'wrong_phase' || 'match_ended' || 'too_early' || 'chat_empty' => null,
+    'target_dead' || 'actor_dead' || 'already_left' => null,
+    _ => fallback,
+  };
 }

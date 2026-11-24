@@ -18,7 +18,7 @@ class RoomRequestFailed implements Exception {
 /// The real [RoomRepository] (stream 2): REST for joining and leaving,
 /// one realtime socket for everything live.
 ///
-/// The socket reconnects on its own (1 s, 2 s, 4 s ... up to 30 s) and
+/// The socket reconnects on its own (1 s, 2 s, 4 s, then every 8 s) and
 /// re-watches every room, and the server re-sends the room, public and
 /// private state on each watch, so a dropped connection heals itself. The
 /// server keeps a seat for 60 seconds.
@@ -256,12 +256,30 @@ class HttpRoomRepository implements RoomRepository {
     _sub?.cancel();
     _socket = null;
     if (_closed) return;
-    final secs = 1 << _attempt.clamp(0, 5);
+    // Short waits: a seat is only kept for 60 seconds, so a player whose
+    // network comes back must not sit out a long back-off.
+    final secs = 1 << _attempt.clamp(0, 3);
     _attempt++;
     _retry?.cancel();
-    _retry = Timer(Duration(seconds: secs > 30 ? 30 : secs), () {
+    _retry = Timer(Duration(seconds: secs), () {
       if (_watched.isNotEmpty) _ensureSocket();
     });
+  }
+
+  /// The app is back in front (phone unlocked, tab shown again): reconnect
+  /// now instead of waiting for the next retry, and ask again for every
+  /// room's state in case updates were missed while away.
+  void wake() {
+    if (_closed) return;
+    if (_socket == null) {
+      _retry?.cancel();
+      _attempt = 0;
+      _ensureSocket();
+      return;
+    }
+    for (final id in _watched) {
+      _sendFrame(WatchRoom(id));
+    }
   }
 
   void _sendFrame(ClientMessage m) {

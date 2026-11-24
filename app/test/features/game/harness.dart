@@ -1,3 +1,4 @@
+import 'package:contracts/contracts.dart';
 import 'package:contracts/testing.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +12,7 @@ Future<FakeRoomRepository> pumpGameUi(
   WidgetTester tester,
   Widget child, {
   FakeRoomRepository? rooms,
+  Stream<SocketError>? errors,
 }) async {
   final repo = rooms ?? FakeRoomRepository();
   tester.view.physicalSize = const Size(1080, 2400);
@@ -21,6 +23,7 @@ Future<FakeRoomRepository> pumpGameUi(
       overrides: [
         roomRepositoryProvider.overrideWithValue(repo),
         gameDemoEnabledProvider.overrideWithValue(false),
+        if (errors != null) roomErrorsProvider.overrideWith((ref) => errors),
       ],
       child: MaterialApp(
         locale: const Locale('en'),
