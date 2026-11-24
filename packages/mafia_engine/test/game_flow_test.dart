@@ -136,6 +136,30 @@ void main() {
       expect(t.phase, GamePhase.day);
     });
 
+    test('the night does not wait for the Mafia once the Don has shot', () {
+      t
+        ..act(NightKill(actorId: don, targetId: civilians[0]))
+        ..act(NightCheck(actorId: don, targetId: civilians[1]))
+        ..act(NightCheck(actorId: detective, targetId: don))
+        ..act(NightHeal(actorId: doctor, targetId: doctor));
+      expect(t.phase, isNot(GamePhase.night));
+      expect(t.isAlive(civilians[0]), isFalse);
+    });
+
+    test('without a shot from the Don the night waits for every Mafia', () {
+      t
+        ..act(NightKill(actorId: mafia, targetId: civilians[0]))
+        ..act(NightCheck(actorId: don, targetId: civilians[1]))
+        ..act(NightCheck(actorId: detective, targetId: don))
+        ..act(NightHeal(actorId: doctor, targetId: doctor));
+      expect(t.phase, GamePhase.night);
+      t.act(NightKill(actorId: don, targetId: civilians[2]));
+      expect(t.phase, isNot(GamePhase.night));
+      // The Don's pick decides.
+      expect(t.isAlive(civilians[2]), isFalse);
+      expect(t.isAlive(civilians[0]), isTrue);
+    });
+
     test('check results go only to the checker', () {
       t.act(NightCheck(actorId: detective, targetId: don));
       t.act(NightCheck(actorId: don, targetId: detective));

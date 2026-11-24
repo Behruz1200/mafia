@@ -82,6 +82,8 @@ rejects it earlier with `too_early`.
   Detective. Nobody checks the same player twice. Results arrive in the
   private view when the night ends.
 - The night ends early once every living night role has made every pick.
+  Once the Don has shot, the other Mafia need not pick (the Don's shot
+  decides), unless the Hypnotist put the Don to sleep that night.
 
 **Day.** Talk. The night's result is in the log. Ends on the timer, or
 early once more than half of the living players (`SkipPhase.needed`: 3 of 4,
