@@ -8,6 +8,9 @@ import 'package:material_ui/material_ui.dart';
 
 import 'harness.dart';
 
+String _name(UserId u) =>
+    samplePublicState().players.firstWhere((p) => p.userId == u).displayName;
+
 PublicGameState _state(
   GamePhase phase, {
   Map<UserId, UserId?> votes = const {},
@@ -112,7 +115,7 @@ void main() {
       );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Kamola'));
+    await tester.tap(find.text('Kamola').first);
     await tester.pump();
     await tester.tap(find.text('Confirm: Kamola'));
     await tester.pumpAndSettle();
@@ -124,7 +127,7 @@ void main() {
     expect(repo.sent, hasLength(1));
 
     // Changing the vote is still allowed.
-    await tester.tap(find.text('Jasur'));
+    await tester.tap(find.text('Jasur').first);
     await tester.pump();
     await tester.tap(find.text('Confirm: Jasur'));
     await tester.pumpAndSettle();
@@ -183,9 +186,74 @@ void main() {
     );
     expect(find.text('Otabek was eliminated in the night'), findsOneWidget);
 
+    // Open voting: who voted for whom, and who has not voted yet.
+    final board = find.byKey(const ValueKey('vote-board'));
+    expect(board, findsOneWidget);
+    final row = find.byKey(const ValueKey('vote-row-user_3'));
+    for (final voter in ['user_1', 'user_2']) {
+      expect(
+        find.descendant(of: row, matching: find.text(_name(voter))),
+        findsOneWidget,
+      );
+    }
+    expect(
+      find.descendant(of: board, matching: find.text('2 of 8 voted')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('vote-row-waiting')),
+        matching: find.text('You'),
+      ),
+      findsOneWidget,
+    );
+
     await tester.tap(find.text('Skip'));
     await tester.pump();
     expect((repo.sent.single as CastVote).targetId, isNull);
+  });
+
+  testWidgets('after the vote everyone still sees who voted for whom', (
+    tester,
+  ) async {
+    final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+    repo.emitPublic(
+      PublicGameState(
+        roomId: 'room_1',
+        matchId: 'match_1',
+        phase: GamePhase.night,
+        round: 2,
+        players: samplePlayers(8),
+        lastVotes: const {
+          'user_0': 'user_4',
+          'user_1': 'user_4',
+          'user_2': null,
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    final board = find.byKey(const ValueKey('vote-board'));
+    await tester.scrollUntilVisible(
+      board,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(
+      find.descendant(of: board, matching: find.text('HOW THE TOWN VOTED')),
+      findsOneWidget,
+    );
+    final row = find.byKey(const ValueKey('vote-row-user_4'));
+    expect(
+      find.descendant(of: row, matching: find.text('You')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('vote-row-skip')),
+        matching: find.text(_name('user_2')),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('results show the winner and the lost stake', (tester) async {

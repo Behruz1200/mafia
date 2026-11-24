@@ -264,6 +264,23 @@ void main() {
       expect(t.state.public.votes, isEmpty);
     });
 
+    test('everyone sees who voted for whom until the next vote', () {
+      t.act(CastVote(actorId: civilians[0], targetId: mafia));
+      t.act(CastVote(actorId: civilians[1], targetId: mafia));
+      t.act(CastVote(actorId: civilians[2], targetId: null));
+      t.timeout();
+      expect(t.phase, GamePhase.night);
+      expect(t.state.public.lastVotes, {
+        civilians[0]: mafia,
+        civilians[1]: mafia,
+        civilians[2]: null,
+      });
+      t.timeout(); // quiet night
+      expect(t.state.public.lastVotes, hasLength(3), reason: 'still day');
+      t.toVoting();
+      expect(t.state.public.lastVotes, isEmpty);
+    });
+
     test('a tie puts nobody out', () {
       t.act(CastVote(actorId: civilians[0], targetId: mafia));
       t.act(CastVote(actorId: civilians[1], targetId: don));

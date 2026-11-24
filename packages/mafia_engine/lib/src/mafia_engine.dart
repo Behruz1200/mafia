@@ -556,20 +556,27 @@ class MafiaEngine implements GameEngine {
       );
     }
 
+    // Who voted for whom stays open to the table until the next vote.
+    final cast = {
+      for (final MapEntry(key: voter, value: target) in pub.votes.entries)
+        if (_player(s, voter)?.isAlive ?? false) voter: target,
+    };
     final mem = _memory(s);
     final afterVote = _copy(
       s,
-      public: _pub(pub, players: players, log: log, votes: const {}),
+      public: _pub(
+        pub,
+        players: players,
+        log: log,
+        votes: const {},
+        lastVotes: cast,
+      ),
       memory: mem.copyWith(
         days: [
           ...mem.days,
           StoryVote(
             round: pub.round,
-            votes: {
-              for (final MapEntry(key: voter, value: target)
-                  in pub.votes.entries)
-                if (_player(s, voter)?.isAlive ?? false) voter: target,
-            },
+            votes: cast,
             votedOut: votedOut,
             tied: tied,
           ),
@@ -855,6 +862,7 @@ class MafiaEngine implements GameEngine {
       phase: GamePhase.voting,
       phaseEndsAt: () => now.add(s.settings.durations.voting),
       votes: const {},
+      lastVotes: const {},
       log: [
         ...s.public.log,
         PublicEvent(
@@ -1070,6 +1078,7 @@ class MafiaEngine implements GameEngine {
     DateTime? Function()? phaseEndsAt,
     List<Player>? players,
     Map<UserId, UserId?>? votes,
+    Map<UserId, UserId?>? lastVotes,
     List<UserId>? skipVotes,
     List<PublicEvent>? log,
     Team? winner,
@@ -1082,6 +1091,7 @@ class MafiaEngine implements GameEngine {
     phaseEndsAt: phaseEndsAt == null ? p.phaseEndsAt : phaseEndsAt(),
     players: players ?? p.players,
     votes: votes ?? p.votes,
+    lastVotes: lastVotes ?? p.lastVotes,
     // Agreements to skip belong to one phase only.
     skipVotes:
         skipVotes ??

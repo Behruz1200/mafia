@@ -65,6 +65,7 @@ class PublicGameState {
     required this.players,
     this.phaseEndsAt,
     this.votes = const {},
+    this.lastVotes = const {},
     this.skipVotes = const [],
     this.log = const [],
     this.winner,
@@ -82,6 +83,11 @@ class PublicGameState {
 
   /// Open votes during [GamePhase.voting]: voter -> target (null = skip).
   final Map<UserId, UserId?> votes;
+
+  /// How the last day vote ended: each voter -> their target (null =
+  /// skipped). Open to everyone from the end of a vote until the next one
+  /// starts, so the table can see who voted for whom.
+  final Map<UserId, UserId?> lastVotes;
 
   /// Living players who agreed to end this phase's timer early
   /// (`SkipPhase`). Cleared whenever the phase changes.
@@ -105,6 +111,7 @@ class PublicGameState {
     'phaseEndsAt': phaseEndsAt == null ? null : encodeTime(phaseEndsAt!),
     'players': [for (final p in players) p.toJson()],
     'votes': votes,
+    'lastVotes': lastVotes,
     'skipVotes': skipVotes,
     'log': [for (final e in log) e.toJson()],
     'winner': winner?.name,
@@ -119,6 +126,9 @@ class PublicGameState {
     phaseEndsAt: decodeTimeOrNull(j['phaseEndsAt']),
     players: decodeList(j['players'], Player.fromJson),
     votes: (j['votes'] as Json? ?? const {}).map(
+      (k, v) => MapEntry(k, v as String?),
+    ),
+    lastVotes: (j['lastVotes'] as Json? ?? const {}).map(
       (k, v) => MapEntry(k, v as String?),
     ),
     skipVotes: decodeStrings(j['skipVotes']),

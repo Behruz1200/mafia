@@ -44,6 +44,18 @@ void main() {
     ]);
   });
 
+  test('the last vote travels with the public state', () {
+    final s = samplePublicState();
+    final back = PublicGameState.fromJson(
+      wire({
+        ...s.toJson(),
+        'lastVotes': {'user_1': 'user_2', 'user_3': null},
+      }),
+    );
+    expect(back.lastVotes, {'user_1': 'user_2', 'user_3': null});
+    expect(PublicGameState.fromJson(wire(s.toJson())).lastVotes, isEmpty);
+  });
+
   test('server messages round-trip', () {
     final msgs = <ServerMessage>[
       RoomUpdated(sampleRoom()),
