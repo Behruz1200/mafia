@@ -398,7 +398,7 @@ class _QuickMatchCard extends StatelessWidget {
             height: 236,
             child: Stack(
               children: [
-                const Positioned.fill(child: NightCity()),
+                const Positioned.fill(child: NightCity(animate: true)),
                 Positioned(
                   right: 18,
                   top: 18,
