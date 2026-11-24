@@ -5,11 +5,42 @@ import 'package:livekit_client/livekit_client.dart' as lk;
 
 import '../call_state.dart';
 
-/// Video settings kept small on purpose: our LiveKit runs on a shared
-/// 2-core server, and a 12-player table means each phone receives up to 11
-/// streams. Roughly 140 kbit/s of video and 24 kbit/s of speech per person.
+/// Video and sound settings. Our LiveKit runs on a shared 2-core server,
+/// and at a 12-player table each player receives up to 11 cameras, so every
+/// number here is a budget.
+///
+/// Each camera is sent twice (simulcast): a sharp copy and a small one. The
+/// server forwards each viewer only the copy that fits the tile on their
+/// screen ([adaptiveStream]) and that their connection can carry right now,
+/// so a weak phone network falls back to the small copy instead of freezing.
+///  * Upload per camera: about 400 + 170 kbit/s, plus 32 for the mic.
+///  * A phone (small tiles) receives about 170 kbit/s per camera, 1.9
+///    Mbit/s for a full table; a laptop with big tiles about 400 each.
 abstract final class CallQuality {
-  static const camera = lk.VideoParametersPresets.h240_43; // 320x240, 15 fps
+  /// The sharp copy, and what the camera captures: 480x360 at 24 fps.
+  static const camera = lk.VideoParameters(
+    dimensions: lk.VideoDimensionsPresets.h360_43,
+    encoding: _sharp,
+  );
+  static const _sharp = lk.VideoEncoding(
+    maxBitrate: 400 * 1000,
+    maxFramerate: 24,
+  );
+
+  /// The small copy, for phone-sized tiles and weak connections.
+  static const cameraSmall = lk.VideoParameters(
+    dimensions: lk.VideoDimensionsPresets.h240_43,
+    encoding: lk.VideoEncoding(maxBitrate: 170 * 1000, maxFramerate: 20),
+  );
+
+  /// Clear speech. Opus at 32 kbit/s, and close to nothing while silent.
+  static const voice = lk.AudioEncoding(maxBitrate: 32 * 1000);
+
+  /// Caps how many real pixels a tile asks the server for, per screen
+  /// point. Phones have 3 pixels per point; asking for all of them would
+  /// pull the sharp copy into every small seat. At 2, phone seats take the
+  /// small copy and big seats on a laptop or tablet take the sharp one.
+  static const maxPixelDensity = 2.0;
 
   static const roomOptions = lk.RoomOptions(
     // Only fetch video for tiles on screen, at the size they are shown.
@@ -19,14 +50,25 @@ abstract final class CallQuality {
     defaultCameraCaptureOptions: lk.CameraCaptureOptions(params: camera),
     defaultVideoPublishOptions: lk.VideoPublishOptions(
       videoCodec: 'vp8',
-      videoEncoding: lk.VideoEncoding(maxBitrate: 140 * 1000, maxFramerate: 15),
-      // Tiles are small: one layer is enough, and saves upload and CPU.
-      simulcast: false,
+      videoEncoding: _sharp,
+      simulcast: true,
+      videoSimulcastLayers: [cameraSmall],
       backupVideoCodec: lk.BackupVideoCodec(enabled: false),
     ),
+    // All of the phone's or browser's voice clean-up, on purpose: players
+    // sit in noisy rooms and often use the loudspeaker.
+    defaultAudioCaptureOptions: lk.AudioCaptureOptions(
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      highPassFilter: true, // cuts rumble: fans, traffic, table knocks
+      voiceIsolation: true,
+      typingNoiseDetection: true,
+    ),
     defaultAudioPublishOptions: lk.AudioPublishOptions(
-      encoding: lk.AudioEncoding.presetSpeech,
+      encoding: voice,
       dtx: true, // send almost nothing while silent
+      red: true, // resend each sound once, so lost packets do not cut words
     ),
   );
 }

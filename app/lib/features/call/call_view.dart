@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:contracts/contracts.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -235,7 +237,18 @@ class SeatVideo extends ConsumerWidget {
       fit: StackFit.expand,
       children: [
         if (video != null)
-          lk.VideoTrackRenderer(video, fit: lk.VideoViewFit.cover)
+          lk.VideoTrackRenderer(
+            video,
+            fit: lk.VideoViewFit.cover,
+            // Ask the server for the copy that fits this seat, not more:
+            // see CallQuality.maxPixelDensity.
+            adaptiveStreamPixelDensity: lk.AdaptiveStreamPixelDensity.fixed(
+              math.min(
+                MediaQuery.devicePixelRatioOf(context),
+                CallQuality.maxPixelDensity,
+              ),
+            ),
+          )
         else
           placeholder,
         if (person != null && person.isSpeaking)

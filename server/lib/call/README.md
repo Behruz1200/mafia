@@ -32,6 +32,13 @@ left for the Mafia call.
 env. Optional `LIVEKIT_API_URL` (e.g. `http://127.0.0.1:7880`) so room
 admin calls stay on the machine; defaults to `LIVEKIT_URL` over https.
 
-Video quality is set in the app (`CallQuality`): 320x240 at 15 fps,
-about 140 kbit/s, one layer, plus 24 kbit/s speech with silence
-suppression. A 12-player day uses roughly 20 Mbit/s on the server.
+Video quality is set in the app (`CallQuality`). Each camera captures
+480x360 at 24 fps and is sent as two copies (simulcast): about 400 kbit/s
+sharp and 170 kbit/s small (320x240, 20 fps). LiveKit forwards each
+viewer the copy that fits the seat on their screen and that their
+connection can carry, so phones get the small copy and a weak network
+drops to it instead of freezing. Speech is Opus at 32 kbit/s with silence
+suppression and redundancy against lost packets. A 12-player day uses
+roughly 7 Mbit/s in and 23 Mbit/s out on the server when everyone is on a
+phone, up to about 55 Mbit/s out when everyone is on a laptop with big
+seats. No server setting is needed for this.
