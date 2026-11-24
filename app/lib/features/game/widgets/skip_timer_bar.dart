@@ -7,7 +7,7 @@ import '../ui/game_style.dart';
 
 /// "Skip timer" during the day's talk (and the role reveal). Each living
 /// player taps it; the server ends the timer once enough of them have
-/// (`SkipPhase.needed`, two thirds), so one player can never skip for
+/// (`SkipPhase.needed`, more than half), so one player can never skip for
 /// everyone. Shows how many agreed out of how many are needed, and lets
 /// the player take theirs back.
 class SkipTimerBar extends StatefulWidget {

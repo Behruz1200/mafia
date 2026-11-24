@@ -57,8 +57,8 @@ rejects it earlier with `too_early`.
 - The night ends early once every living night role has made every pick.
 
 **Day.** Talk. The night's result is in the log. Ends on the timer, or
-early once two thirds of the living players (rounded up, `SkipPhase.needed`)
-have sent `SkipPhase` ("skip the timer").
+early once more than half of the living players (`SkipPhase.needed`: 3 of 4,
+3 of 5, 4 of 7) have sent `SkipPhase` ("skip the timer").
 Each agreement shows in `PublicGameState.skipVotes`; a player can take it
 back with `SkipPhase(skip: false)`, and the list clears when the phase
 changes. One player alone can never skip for everyone. The role reveal can

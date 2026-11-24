@@ -204,7 +204,7 @@
   "gameSkipTimer": "Пропустить таймер",
   "gameSkipTimerCount": "Пропустить таймер · {count}/{total}",
   "gameSkipAgreed": "Вы за пропуск · {count}/{total}",
-  "gameSkipHint": "Таймер закончится раньше, когда 2 из 3 игроков нажмут «Пропустить».",
+  "gameSkipHint": "Таймер закончится раньше, когда больше половины игроков нажмут «Пропустить».",
   "gameSkipUndo": "Отменить",
   "gameEventPhaseSkipped": "Большинство согласились пропустить таймер",
   "languageTitle": "Язык",

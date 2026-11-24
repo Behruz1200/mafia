@@ -294,7 +294,7 @@ void main() {
       expect(t.phase, GamePhase.day);
     });
 
-    test('the day ends early once two thirds of the living agree', () {
+    test('the day ends early once more than half of the living agree', () {
       final everyone = alive();
       final needed = SkipPhase.needed(everyone.length);
       expect(needed, lessThan(everyone.length));
@@ -349,10 +349,10 @@ void main() {
       );
     });
 
-    test('two thirds, rounded up', () {
+    test('more than half: 3 of 4, 3 of 5, 4 of 7', () {
       expect(
         [for (var n = 1; n <= 12; n++) SkipPhase.needed(n)],
-        [1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 8],
+        [1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7],
       );
     });
 

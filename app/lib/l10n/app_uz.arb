@@ -204,7 +204,7 @@
   "gameSkipTimer": "Taymerni o‘tkazish",
   "gameSkipTimerCount": "Taymerni o‘tkazish · {count}/{total}",
   "gameSkipAgreed": "Siz o‘tkazishga rozisiz · {count}/{total}",
-  "gameSkipHint": "Har 3 o‘yinchidan 2 tasi «O‘tkazish»ni bossa, taymer oldinroq tugaydi.",
+  "gameSkipHint": "O‘yinchilarning yarmidan ko‘pi «O‘tkazish»ni bossa, taymer oldinroq tugaydi.",
   "gameSkipUndo": "Bekor qilish",
   "gameEventPhaseSkipped": "Ko‘pchilik taymerni o‘tkazishga rozi bo‘ldi",
   "languageTitle": "Til",

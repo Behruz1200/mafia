@@ -229,7 +229,7 @@
   "@gameSkipTimerCount": {"placeholders": {"count": {"type": "int"}, "total": {"type": "int"}}},
   "gameSkipAgreed": "You want to skip · {count}/{total}",
   "@gameSkipAgreed": {"placeholders": {"count": {"type": "int"}, "total": {"type": "int"}}},
-  "gameSkipHint": "The timer ends early once 2 out of 3 players tap Skip.",
+  "gameSkipHint": "The timer ends early once more than half of the players tap Skip.",
   "gameSkipUndo": "Undo",
   "gameEventPhaseSkipped": "Most players agreed to skip the timer",
   "languageTitle": "Language",
