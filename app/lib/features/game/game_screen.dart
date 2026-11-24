@@ -12,6 +12,7 @@ import '../rooms/data/http_room_repository.dart';
 import 'game_providers.dart';
 import 'ui/game_text.dart';
 import 'ui/game_style.dart';
+import 'ui/noir_art.dart';
 import 'widgets/match_view.dart';
 import 'widgets/phase_header.dart';
 import 'widgets/results_view.dart';
@@ -184,59 +185,73 @@ class _GameScreenState extends ConsumerState<GameScreen> {
             showWaiting ? GamePhase.lobby : public.phase,
           ),
         ),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            leading: Padding(
-              padding: const EdgeInsets.only(left: 12),
-              child: IconButton(
-                tooltip: t.gameLeave,
-                style: IconButton.styleFrom(
-                  backgroundColor: GameStyle.card,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // The city at night along the bottom, and rain after dark.
+            const Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Opacity(opacity: 0.3, child: SkylineStrip(height: 120)),
+            ),
+            if (!showWaiting && public.phase == GamePhase.night)
+              const RainLayer(),
+            Scaffold(
+              backgroundColor: Colors.transparent,
+              appBar: AppBar(
+                backgroundColor: Colors.transparent,
+                leading: Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: IconButton(
+                    tooltip: t.gameLeave,
+                    style: IconButton.styleFrom(
+                      backgroundColor: GameStyle.card,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: _leave,
                   ),
                 ),
-                icon: const Icon(Icons.close_rounded),
-                onPressed: _leave,
+                leadingWidth: 64,
+                title: Text(showWaiting ? t.gameWaitingTitle : t.appTitle),
+                actions: [
+                  if (isDemo)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: Chip(
+                        visualDensity: VisualDensity.compact,
+                        label: Text(
+                          t.gameDemoBadge,
+                          style: const TextStyle(color: GameStyle.gold),
+                        ),
+                        side: BorderSide.none,
+                        backgroundColor: GameStyle.gold.withValues(alpha: 0.16),
+                      ),
+                    ),
+                ],
+              ),
+              body: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 350),
+                child: KeyedSubtree(
+                  // Night, day and voting share one subtree so the call and
+                  // the table are not rebuilt between phases.
+                  key: ValueKey(switch (showWaiting
+                      ? GamePhase.lobby
+                      : public.phase) {
+                    GamePhase.night ||
+                    GamePhase.day ||
+                    GamePhase.voting ||
+                    GamePhase.lastWord => 'match',
+                    final p => p.name,
+                  }),
+                  child: body,
+                ),
               ),
             ),
-            leadingWidth: 64,
-            title: Text(showWaiting ? t.gameWaitingTitle : t.appTitle),
-            actions: [
-              if (isDemo)
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: Chip(
-                    visualDensity: VisualDensity.compact,
-                    label: Text(
-                      t.gameDemoBadge,
-                      style: const TextStyle(color: GameStyle.gold),
-                    ),
-                    side: BorderSide.none,
-                    backgroundColor: GameStyle.gold.withValues(alpha: 0.16),
-                  ),
-                ),
-            ],
-          ),
-          body: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 350),
-            child: KeyedSubtree(
-              // Night, day and voting share one subtree so the call and
-              // the table are not rebuilt between phases.
-              key: ValueKey(switch (showWaiting
-                  ? GamePhase.lobby
-                  : public.phase) {
-                GamePhase.night ||
-                GamePhase.day ||
-                GamePhase.voting ||
-                GamePhase.lastWord => 'match',
-                final p => p.name,
-              }),
-              child: body,
-            ),
-          ),
+          ],
         ),
       ),
     );

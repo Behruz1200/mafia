@@ -12,6 +12,7 @@ import '../../core/theme.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../game/ui/game_style.dart';
 import '../game/ui/game_text.dart';
+import '../game/ui/noir_art.dart';
 import '../rooms/data/http_room_repository.dart';
 import '../shop/data/http_wallet_repository.dart';
 import 'widgets/create_room_sheet.dart';
@@ -140,78 +141,102 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
       decoration: const BoxDecoration(gradient: GameStyle.lobbyGradient),
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        body: SafeArea(
-          child: AbsorbPointer(
-            absorbing: _busy,
-            child: RefreshIndicator(
-              onRefresh: _refresh,
-              color: GameStyle.crimson,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
-                children: [
-                  _TopBar(
-                    name: profile?.displayName,
-                    coins: balance?.available,
-                  ),
-                  const SizedBox(height: 22),
-                  _Tagline(text: t.lobbyTagline, highlight: t.appTitle),
-                  const SizedBox(height: 24),
-                  _QuickMatchCard(
-                    key: const ValueKey('quickMatch'),
-                    title: t.quickMatch,
-                    subtitle: t.lobbyQuickMatchHint,
-                    onTap: () => _open(rooms.quickMatch),
-                  ),
-                  const SizedBox(height: 14),
-                  IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      spacing: 12,
-                      children: [
-                        Expanded(
-                          child: _ModeCard(
-                            key: const ValueKey('createRoom'),
-                            icon: Icons.add_rounded,
-                            color: GameStyle.gold,
-                            title: t.createRoom,
-                            subtitle: t.lobbyCreateRoomHint,
-                            onTap: () async {
-                              final settings = await showCreateRoomSheet(
-                                context,
-                                available: balance?.available ?? 0,
-                                canStake: profile?.isAdult ?? false,
-                              );
-                              if (settings != null) {
-                                await _open(() => rooms.createRoom(settings));
-                              }
-                            },
-                          ),
+        body: Stack(
+          children: [
+            // The city at night along the bottom of the screen.
+            const Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Opacity(opacity: 0.35, child: SkylineStrip()),
+            ),
+            SafeArea(
+              child: AbsorbPointer(
+                absorbing: _busy,
+                child: RefreshIndicator(
+                  onRefresh: _refresh,
+                  color: GameStyle.crimson,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+                    children: [
+                      _TopBar(
+                        name: profile?.displayName,
+                        coins: balance?.available,
+                      ),
+                      const SizedBox(height: 22),
+                      _Tagline(text: t.lobbyTagline, highlight: t.appTitle),
+                      const SizedBox(height: 24),
+                      _QuickMatchCard(
+                        key: const ValueKey('quickMatch'),
+                        title: t.quickMatch,
+                        subtitle: t.lobbyQuickMatchHint,
+                        onTap: () => _open(rooms.quickMatch),
+                      ),
+                      const SizedBox(height: 14),
+                      IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          spacing: 12,
+                          children: [
+                            Expanded(
+                              child: _ModeCard(
+                                key: const ValueKey('createRoom'),
+                                icon: Icons.style_rounded,
+                                color: GameStyle.gold,
+                                ghost: const FedoraIcon(
+                                  size: 96,
+                                  color: GameStyle.gold,
+                                ),
+                                title: t.createRoom,
+                                subtitle: t.lobbyCreateRoomHint,
+                                onTap: () async {
+                                  final settings = await showCreateRoomSheet(
+                                    context,
+                                    available: balance?.available ?? 0,
+                                    canStake: profile?.isAdult ?? false,
+                                  );
+                                  if (settings != null) {
+                                    await _open(
+                                      () => rooms.createRoom(settings),
+                                    );
+                                  }
+                                },
+                              ),
+                            ),
+                            Expanded(
+                              child: _ModeCard(
+                                key: const ValueKey('joinRoom'),
+                                icon: Icons.vpn_key_rounded,
+                                color: GameStyle.town,
+                                ghost: const Icon(
+                                  Icons.vpn_key_rounded,
+                                  size: 74,
+                                  color: GameStyle.town,
+                                ),
+                                title: t.joinRoom,
+                                subtitle: t.lobbyJoinRoomHint,
+                                onTap: () async {
+                                  final code = await showJoinCodeDialog(
+                                    context,
+                                  );
+                                  if (code != null) {
+                                    await _open(() => rooms.joinByCode(code));
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
                         ),
-                        Expanded(
-                          child: _ModeCard(
-                            key: const ValueKey('joinRoom'),
-                            icon: Icons.vpn_key_rounded,
-                            color: GameStyle.town,
-                            title: t.joinRoom,
-                            subtitle: t.lobbyJoinRoomHint,
-                            onTap: () async {
-                              final code = await showJoinCodeDialog(context);
-                              if (code != null) {
-                                await _open(() => rooms.joinByCode(code));
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 14),
+                      _HowToPlay(),
+                    ],
                   ),
-                  const SizedBox(height: 14),
-                  _HowToPlay(),
-                ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -318,7 +343,15 @@ class _Tagline extends StatelessWidget {
           TextSpan(text: text.substring(0, at)),
           TextSpan(
             text: text.substring(at, at + highlight.length),
-            style: const TextStyle(color: GameStyle.crimson),
+            style: TextStyle(
+              color: GameStyle.crimson,
+              shadows: [
+                Shadow(
+                  color: GameStyle.crimson.withValues(alpha: 0.75),
+                  blurRadius: 18,
+                ),
+              ],
+            ),
           ),
           TextSpan(text: text.substring(at + highlight.length)),
         ],
@@ -327,7 +360,8 @@ class _Tagline extends StatelessWidget {
   }
 }
 
-/// The big glowing "play now" card.
+/// The big "play now" card: a rainy night street with a man in a fedora
+/// waiting under a street lamp.
 class _QuickMatchCard extends StatelessWidget {
   const _QuickMatchCard({
     super.key,
@@ -342,67 +376,81 @@ class _QuickMatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(28);
     return DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: radius,
         boxShadow: GameStyle.glow(GameStyle.crimson),
       ),
       child: Material(
-        color: GameStyle.crimson,
-        borderRadius: BorderRadius.circular(28),
+        color: const Color(0xFF170A30),
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(
+            color: GameStyle.crimson.withValues(alpha: 0.7),
+            width: 1.5,
+          ),
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           child: SizedBox(
-            height: 172,
+            height: 236,
             child: Stack(
               children: [
+                const Positioned.fill(child: NightCity()),
                 Positioned(
-                  right: -36,
-                  bottom: -52,
-                  child: Container(
-                    width: 180,
-                    height: 180,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.12),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  right: 22,
-                  top: 22,
+                  right: 18,
+                  top: 18,
                   child: Container(
                     width: 58,
                     height: 58,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.white,
+                      color: GameStyle.crimson,
+                      boxShadow: [
+                        BoxShadow(
+                          color: GameStyle.crimson.withValues(alpha: 0.25),
+                          spreadRadius: 6,
+                        ),
+                        BoxShadow(
+                          color: GameStyle.crimson.withValues(alpha: 0.9),
+                          blurRadius: 30,
+                        ),
+                      ],
                     ),
                     child: const Icon(
                       Icons.play_arrow_rounded,
                       size: 36,
-                      color: GameStyle.crimson,
+                      color: Colors.white,
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(22),
+                Positioned(
+                  left: 22,
+                  right: 22,
+                  bottom: 20,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.bolt_rounded, color: Colors.white),
-                      const Spacer(),
                       Text(
                         title,
-                        style: GameStyle.display(26, color: Colors.white),
+                        style: GameStyle.display(26, color: Colors.white)
+                            .copyWith(
+                              shadows: const [
+                                Shadow(color: Colors.black, blurRadius: 12),
+                              ],
+                            ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 5),
                       Text(
                         subtitle,
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.92),
                           fontWeight: FontWeight.w600,
+                          shadows: const [
+                            Shadow(color: Colors.black, blurRadius: 8),
+                          ],
                         ),
                       ),
                     ],
@@ -425,8 +473,11 @@ class _ModeCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.ghost,
   });
 
+  /// Faint art in the bottom right corner.
+  final Widget? ghost;
   final IconData icon;
   final Color color;
   final String title;
@@ -441,33 +492,43 @@ class _ModeCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              IconBlob(icon: icon, color: color),
-              const SizedBox(height: 16),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontFamily: Palette.display,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
-                  height: 1.25,
-                ),
+        child: Stack(
+          children: [
+            if (ghost != null)
+              Positioned(
+                right: -10,
+                bottom: -14,
+                child: Opacity(opacity: 0.1, child: ghost),
               ),
-              const SizedBox(height: 6),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  color: GameStyle.muted,
-                  fontSize: 13,
-                  height: 1.35,
-                ),
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  IconBlob(icon: icon, color: color),
+                  const SizedBox(height: 16),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: Palette.display,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: GameStyle.muted,
+                      fontSize: 13,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -487,7 +548,7 @@ class _HowToPlay extends StatelessWidget {
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           leading: const IconBlob(
-            icon: Icons.help_outline_rounded,
+            icon: Icons.menu_book_rounded,
             color: GameStyle.moon,
             size: 36,
           ),

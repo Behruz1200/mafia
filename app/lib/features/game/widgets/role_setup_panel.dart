@@ -5,6 +5,7 @@ import '../../../core/theme.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../ui/game_style.dart';
 import '../ui/game_text.dart';
+import '../ui/noir_art.dart';
 
 /// The order roles are listed in, by side.
 const _mafiaSide = [Role.don, Role.mafia];
@@ -228,7 +229,6 @@ class RoleChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
-    final color = GameStyle.teamColor(role.team);
     return Material(
       color: GameStyle.feltLight,
       borderRadius: BorderRadius.circular(14),
@@ -242,19 +242,7 @@ class RoleChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             spacing: 6,
             children: [
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  GameStyle.roleIcon(role),
-                  size: 15,
-                  color: Colors.white,
-                ),
-              ),
+              RoleBadge(role: role, size: 26),
               Text(
                 t.roleName(role),
                 style: const TextStyle(
@@ -320,11 +308,7 @@ Future<void> showRoleInfo(BuildContext context, Role role) {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 spacing: 14,
                 children: [
-                  IconBlob(
-                    icon: GameStyle.roleIcon(role),
-                    color: color,
-                    size: 52,
-                  ),
+                  RoleBadge(role: role, size: 64),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -621,7 +605,6 @@ class _RoleRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
-    final color = GameStyle.teamColor(role.team);
     return Opacity(
       opacity: enabled || shownCount > 0 ? 1 : 0.55,
       child: Container(
@@ -634,19 +617,7 @@ class _RoleRow extends StatelessWidget {
           children: [
             GestureDetector(
               onTap: () => showRoleInfo(context, role),
-              child: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.8),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  GameStyle.roleIcon(role),
-                  color: Colors.white,
-                  size: 21,
-                ),
-              ),
+              child: RoleBadge(role: role, size: 40),
             ),
             Expanded(
               child: Column(
