@@ -101,7 +101,7 @@ not vote do not count. Voting ends early once every living player has voted.
 **Last word.** When someone is killed at night or voted out and the match
 goes on, a `lastWord` phase comes first (`night -> lastWord -> day`,
 `voting -> lastWord -> night`). `PublicGameState.lastWordBy` is the speaker:
-already out, but the only one who may talk at the table (30 seconds by
+already out, but the only one who may talk at the table (7 seconds by
 default, `PhaseDurations.lastWord`). They may type up to three lines
 (`SayLastWord`, each cleaned and cut to 200 characters by
 `ChatRules.clean`), which go to the log as `lastWord` events with `text`, and

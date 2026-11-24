@@ -874,7 +874,7 @@ class RoomService implements RealtimeRooms {
         okSec(d.night, 10, 180) &&
         okSec(d.day, 20, 600) &&
         okSec(d.voting, 10, 180) &&
-        okSec(d.lastWord, 10, 120);
+        okSec(d.lastWord, 5, 120);
     if (!ok) throw const RoomError('invalid_settings', 400);
   }
 
