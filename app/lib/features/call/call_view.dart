@@ -46,9 +46,9 @@ class CallControls extends ConsumerStatefulWidget {
   final RoomId? roomId;
 
   /// When set, the camera and mic sit on the left of one row with this
-  /// after them (the waiting room's Start button), and the status line
-  /// moves above the row. Without it the status line is on the left and
-  /// the toggles on the right.
+  /// after them (Start, Confirm, Skip timer), and the status line moves
+  /// above the row. Without it the status line follows the toggles, so
+  /// the camera and mic never jump sides between phases.
   final Widget? trailing;
 
   @override
@@ -200,11 +200,11 @@ class _CallControlsState extends ConsumerState<CallControls> {
       );
     }
     return Row(
-      spacing: 10,
+      spacing: 12,
       children: [
-        Expanded(child: status ?? const SizedBox.shrink()),
         camera,
         mic,
+        Expanded(child: status ?? const SizedBox.shrink()),
       ],
     );
   }

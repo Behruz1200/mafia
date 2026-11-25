@@ -56,9 +56,14 @@ class PlayerTable extends StatelessWidget {
       if (target != null) tally[target] = (tally[target] ?? 0) + 1;
     }
     final seats = [...players]..sort((a, b) => a.seat.compareTo(b.seat));
+    // With nobody to pick, a tap opens the camera full screen; while
+    // picking, a tap picks and holding still opens it.
+    final picking = selectable.isNotEmpty && onSelect != null;
+    void view(UserId id) =>
+        showSeatCameras(context, seats: seats, start: id, me: me, face: face!);
     return LayoutBuilder(
       builder: (context, c) {
-        final columns = c.maxWidth > 560 ? 6 : 4;
+        final columns = columnsFor(c.maxWidth, seats.length);
         return GridView.builder(
           padding: EdgeInsets.zero,
           shrinkWrap: true,
@@ -68,7 +73,7 @@ class PlayerTable extends StatelessWidget {
             crossAxisCount: columns,
             mainAxisSpacing: 8,
             crossAxisSpacing: 8,
-            childAspectRatio: 0.76,
+            childAspectRatio: 0.8,
           ),
           itemBuilder: (context, i) {
             final p = seats[i];
@@ -87,14 +92,27 @@ class PlayerTable extends StatelessWidget {
               overlay: overlays[p.userId],
               highlighted: highlight == p.userId,
               note: notes[p.userId],
-              onTap: selectable.contains(p.userId) && onSelect != null
-                  ? () => onSelect!(p.userId)
+              onTap: picking
+                  ? (selectable.contains(p.userId)
+                        ? () => onSelect!(p.userId)
+                        : null)
+                  : face != null
+                  ? () => view(p.userId)
                   : null,
+              onLongPress: face != null ? () => view(p.userId) : null,
             );
           },
         );
       },
     );
+  }
+
+  /// Cameras across the table. A phone fits 2 across up to 4 players and
+  /// 3 across after that, so each camera is as big as the screen allows
+  /// (4 across left them about 84 points wide); wide screens keep 6.
+  static int columnsFor(double width, int players) {
+    if (width > 560) return 6;
+    return players <= 4 ? 2 : 3;
   }
 }
 
@@ -112,6 +130,7 @@ class SeatTile extends StatelessWidget {
     this.selected = false,
     this.face,
     this.onTap,
+    this.onLongPress,
     this.overlay,
     this.highlighted = false,
     this.note,
@@ -130,6 +149,9 @@ class SeatTile extends StatelessWidget {
   final bool selected;
   final SeatFace? face;
   final VoidCallback? onTap;
+
+  /// Opens the camera full screen.
+  final VoidCallback? onLongPress;
   final Widget? overlay;
 
   /// Gold ring and live camera even when out (their last word).
@@ -145,31 +167,8 @@ class SeatTile extends StatelessWidget {
     final t = AppLocalizations.of(context);
     final dead = !player.isAlive;
     final name = isMe ? t.gameYou : player.displayName;
-    final tint = playerColor(player.displayName);
 
-    final placeholder = DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: dead
-              ? const [Palette.surfaceHigh, Palette.surface]
-              : [tint, Color.lerp(tint, Palette.background, 0.55)!],
-        ),
-      ),
-      child: Align(
-        alignment: const Alignment(0, -0.25),
-        child: Text(
-          player.displayName.isEmpty
-              ? '?'
-              : player.displayName.characters.first.toUpperCase(),
-          style: GameStyle.display(
-            30,
-            color: Colors.white.withValues(alpha: dead ? 0.25 : 0.6),
-          ),
-        ),
-      ),
-    );
+    final placeholder = SeatPlaceholder(player: player);
 
     final (ringColor, ringWidth) = highlighted
         ? (Palette.gold, 3.0)
@@ -202,6 +201,7 @@ class SeatTile extends StatelessWidget {
       button: onTap != null,
       selected: selected,
       label: player.displayName,
+      onLongPressHint: onLongPress != null ? t.gameSeatFullScreen : null,
       child: AnimatedScale(
         scale: selected ? 1.04 : 1,
         duration: const Duration(milliseconds: 150),
@@ -211,6 +211,7 @@ class SeatTile extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
+            onLongPress: onLongPress,
             child: Opacity(
               opacity: (dead && !highlighted) || note != null ? 0.55 : 1,
               child: Stack(
@@ -337,6 +338,243 @@ class SeatTile extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// What a seat shows without video: the player's colour and initial,
+/// sized to the seat.
+class SeatPlaceholder extends StatelessWidget {
+  const SeatPlaceholder({super.key, required this.player});
+
+  final Player player;
+
+  @override
+  Widget build(BuildContext context) {
+    final dead = !player.isAlive;
+    final tint = playerColor(player.displayName);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: dead
+              ? const [Palette.surfaceHigh, Palette.surface]
+              : [tint, Color.lerp(tint, Palette.background, 0.55)!],
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, c) => Align(
+          alignment: const Alignment(0, -0.25),
+          child: Text(
+            player.displayName.isEmpty
+                ? '?'
+                : player.displayName.characters.first.toUpperCase(),
+            style: GameStyle.display(
+              c.maxWidth.isFinite
+                  ? (c.maxWidth * 0.3).clamp(24, 96).toDouble()
+                  : 30,
+              color: Colors.white.withValues(alpha: dead ? 0.25 : 0.6),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Opens [start]'s camera full screen. Swipe, or tap a seat number at
+/// the bottom, to see someone else.
+Future<void> showSeatCameras(
+  BuildContext context, {
+  required List<Player> seats,
+  required UserId start,
+  required UserId? me,
+  required SeatFace face,
+}) {
+  return Navigator.of(context).push(
+    PageRouteBuilder<void>(
+      opaque: false,
+      barrierColor: Colors.black,
+      transitionDuration: const Duration(milliseconds: 180),
+      reverseTransitionDuration: const Duration(milliseconds: 150),
+      pageBuilder: (context, _, _) =>
+          SeatCameraViewer(seats: seats, start: start, me: me, face: face),
+      transitionsBuilder: (context, animation, _, child) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween(begin: 0.94, end: 1.0).animate(
+            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+          ),
+          child: child,
+        ),
+      ),
+    ),
+  );
+}
+
+/// One player's camera filling the screen, with every seat along the
+/// bottom to switch between them.
+class SeatCameraViewer extends StatefulWidget {
+  const SeatCameraViewer({
+    super.key,
+    required this.seats,
+    required this.start,
+    required this.me,
+    required this.face,
+  });
+
+  final List<Player> seats;
+  final UserId start;
+  final UserId? me;
+  final SeatFace face;
+
+  @override
+  State<SeatCameraViewer> createState() => _SeatCameraViewerState();
+}
+
+class _SeatCameraViewerState extends State<SeatCameraViewer> {
+  late int _index = widget.seats
+      .indexWhere((p) => p.userId == widget.start)
+      .clamp(0, widget.seats.length - 1);
+  late final _pages = PageController(initialPage: _index);
+
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  void _go(int i) {
+    setState(() => _index = i);
+    _pages.animateToPage(
+      i,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    final p = widget.seats[_index];
+    final name = p.userId == widget.me ? t.gameYou : p.displayName;
+    return Material(
+      key: const ValueKey('seat-camera-viewer'),
+      color: Colors.black,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          PageView.builder(
+            controller: _pages,
+            itemCount: widget.seats.length,
+            onPageChanged: (i) => setState(() => _index = i),
+            itemBuilder: (context, i) {
+              final seat = widget.seats[i];
+              final placeholder = SeatPlaceholder(player: seat);
+              return seat.isAlive
+                  ? widget.face(seat.userId, placeholder)
+                  : placeholder;
+            },
+          ),
+          // Darkens the bottom so the name and seats read over any video.
+          const IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: [0.6, 1],
+                  colors: [Colors.transparent, Color(0xCC000000)],
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            minimum: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Align(
+                  alignment: Alignment.topRight,
+                  child: IconButton.filled(
+                    key: const ValueKey('close-seat-camera'),
+                    tooltip: MaterialLocalizations.of(context)
+                        .closeButtonTooltip,
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black.withValues(alpha: 0.5),
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${p.seat + 1} · $name',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GameStyle.display(26),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  height: 60,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: widget.seats.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, i) {
+                      final seat = widget.seats[i];
+                      final on = i == _index;
+                      return GestureDetector(
+                        key: ValueKey('seat-camera-${seat.userId}'),
+                        onTap: () => _go(i),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: 48,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: on ? Palette.gold : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                          child: Opacity(
+                            opacity: seat.isAlive ? 1 : 0.45,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                SeatPlaceholder(player: seat),
+                                Positioned(
+                                  left: 0,
+                                  right: 0,
+                                  bottom: 0,
+                                  child: ColoredBox(
+                                    color: Colors.black.withValues(alpha: 0.45),
+                                    child: Text(
+                                      '${seat.seat + 1}',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

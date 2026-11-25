@@ -254,16 +254,6 @@ class _MatchViewState extends State<MatchView> {
                   highlight: speaker,
                 ),
               ),
-              // Open voting: everyone sees who votes for whom, live.
-              if (s.phase == GamePhase.voting) ...[
-                const SizedBox(height: 12),
-                VoteBoard(
-                  votes: s.votes,
-                  players: s.players,
-                  me: widget.me,
-                  live: true,
-                ),
-              ],
               const SizedBox(height: 14),
               _Prompt(
                 text: _promptText(t, action),
@@ -287,6 +277,17 @@ class _MatchViewState extends State<MatchView> {
                     ? GameStyle.crimson
                     : GameStyle.gold,
               ),
+              // Open voting: everyone sees who votes for whom, live. Under the
+              // prompt, so what to do stays near the cameras.
+              if (s.phase == GamePhase.voting) ...[
+                const SizedBox(height: 12),
+                VoteBoard(
+                  votes: s.votes,
+                  players: s.players,
+                  me: widget.me,
+                  live: true,
+                ),
+              ],
               // How the last vote went, until the next one.
               if (s.phase != GamePhase.voting && s.lastVotes.isNotEmpty) ...[
                 const SizedBox(height: 12),
@@ -311,6 +312,27 @@ class _MatchViewState extends State<MatchView> {
           ),
         ),
         _BottomBar(
+          above: action == null || (iSpeak && canSkip)
+              ? null
+              : _ActionExtras(
+                  modes: _donChoice
+                      ? _DonModes(
+                          mode: action,
+                          shot: _done['nightKill'],
+                          checked: _done['nightCheck'],
+                          nameOf: _name,
+                          onChanged: (m) => setState(() {
+                            _donMode = m;
+                            _selected = _done[m];
+                          }),
+                        )
+                      : null,
+                  onSkip:
+                      action == 'castVote' && !_sending && _done[action] != ''
+                      ? () => _confirm(action, skip: true)
+                      : null,
+                  skipText: t.gameSkipVote,
+                ),
           action: iSpeak && canSkip
               ? _DoneButton(
                   text: t.gameLastWordDone,
@@ -324,39 +346,20 @@ class _MatchViewState extends State<MatchView> {
                         onSkip: widget.onSkipTimer!,
                       )
                     : null)
-              : _ActionBar(
-                  modes: _donChoice
-                      ? _DonModes(
-                          mode: action,
-                          shot: _done['nightKill'],
-                          checked: _done['nightCheck'],
-                          nameOf: _name,
-                          onChanged: (m) => setState(() {
-                            _donMode = m;
-                            _selected = _done[m];
-                          }),
-                        )
-                      : null,
-                  confirmText: _selected == null
+              : _ConfirmButton(
+                  text: _selected == null
                       ? t.gameConfirm
                       : _selected == _done[action]
                       ? t.gameConfirmed(_name(_selected!))
                       : '${t.gameConfirm}: ${_name(_selected!)}',
-                  onConfirm:
+                  onPressed:
                       _selected == null ||
                           _sending ||
                           _selected == _done[action]
                       ? null
                       : () => _confirm(action),
-                  onSkip:
-                      action == 'castVote' && !_sending && _done[action] != ''
-                      ? () => _confirm(action, skip: true)
-                      : null,
-                  skipText: t.gameSkipVote,
                 ),
-          // Stream 3 (video) owns CallControls. It stays mounted for the
-          // whole match: the call joins and leaves with it.
-          call: CallControls(roomId: widget.roomId),
+          roomId: widget.roomId,
         ),
       ],
     );
@@ -579,13 +582,23 @@ class _EventLog extends StatelessWidget {
   }
 }
 
-/// The bottom of the table: the pick-and-confirm row when the player has
-/// something to do, and the camera and mic under it.
+/// The bottom of the table: the camera and mic with the main button
+/// (Confirm, Skip timer, Done) beside them in one row, so the cameras
+/// above get the height. Extra picks (the Don's two modes, skipping the
+/// vote) sit over that row.
+///
+/// Stream 3 (video) owns CallControls. It stays mounted for the whole
+/// match: the call joins and leaves with it.
 class _BottomBar extends StatelessWidget {
-  const _BottomBar({required this.action, required this.call});
+  const _BottomBar({
+    required this.above,
+    required this.action,
+    required this.roomId,
+  });
 
+  final Widget? above;
   final Widget? action;
-  final Widget call;
+  final RoomId roomId;
 
   @override
   Widget build(BuildContext context) {
@@ -599,8 +612,12 @@ class _BottomBar extends StatelessWidget {
         top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          spacing: 12,
-          children: [?action, call],
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 10,
+          children: [
+            ?above,
+            CallControls(roomId: roomId, trailing: action),
+          ],
         ),
       ),
     );
@@ -652,57 +669,60 @@ class _DonModes extends StatelessWidget {
   }
 }
 
-class _ActionBar extends StatelessWidget {
-  const _ActionBar({
+/// What goes over the main row while picking: the Don's two modes, and
+/// skipping the vote.
+class _ActionExtras extends StatelessWidget {
+  const _ActionExtras({
     this.modes,
-    required this.confirmText,
-    required this.onConfirm,
     required this.onSkip,
     required this.skipText,
   });
 
-  /// Shown above the buttons when the player has more than one pick.
   final Widget? modes;
-  final String confirmText;
-  final VoidCallback? onConfirm;
   final VoidCallback? onSkip;
   final String skipText;
 
   @override
   Widget build(BuildContext context) {
-    final row = Row(
-      spacing: 10,
-      children: [
-        if (onSkip != null)
-          OutlinedButton(onPressed: onSkip, child: Text(skipText)),
-        Expanded(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: onConfirm == null
-                  ? null
-                  : GameStyle.glow(GameStyle.crimson),
-            ),
-            child: FilledButton(
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(52),
-              ),
-              onPressed: onConfirm,
-              child: Text(
-                confirmText,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-    if (modes == null) return row;
+    if (modes == null && onSkip == null) return const SizedBox.shrink();
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 10,
-      children: [modes!, row],
+      children: [
+        ?modes,
+        if (onSkip != null)
+          OutlinedButton(
+            key: const ValueKey('skip-vote'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(44),
+            ),
+            onPressed: onSkip,
+            child: Text(skipText),
+          ),
+      ],
+    );
+  }
+}
+
+class _ConfirmButton extends StatelessWidget {
+  const _ConfirmButton({required this.text, required this.onPressed});
+
+  final String text;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: onPressed == null ? null : GameStyle.glow(GameStyle.crimson),
+      ),
+      child: FilledButton(
+        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+        onPressed: onPressed,
+        child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
     );
   }
 }
