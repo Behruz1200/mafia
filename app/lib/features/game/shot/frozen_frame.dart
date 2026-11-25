@@ -43,8 +43,6 @@ class FrozenFrame {
   static const width = 240;
   static const cell = 6;
 
-  static const _paper = [251, 238, 210];
-
   int get height => color.height;
 
   /// Turns an encoded still (PNG or JPEG) into a frame, or null if it
@@ -65,39 +63,58 @@ class FrozenFrame {
     }
   }
 
-  /// Makes the comic and grey copies of [color] from its RGBA [px].
+  /// Makes the comic and grey copies of [color] from its RGBA [px]:
+  /// softened a little (camera noise would turn into blotches), the
+  /// brightness cut into a few flat bands while each pixel keeps its own
+  /// hue (so skin stays skin), ink lines where the brightness jumps, and
+  /// halftone dots only in the shadows.
   static Future<FrozenFrame> fromPixels(ui.Image color, Uint8List px) async {
     final w = color.width, h = color.height;
-    final comic = Uint8List(px.length), gray = Uint8List(px.length);
+    final soft = _soften(px, w, h);
+    final n = w * h;
+    final lum = Float32List(n);
+    for (var p = 0; p < n; p++) {
+      lum[p] =
+          0.3 * soft[p * 3] + 0.59 * soft[p * 3 + 1] + 0.11 * soft[p * 3 + 2];
+    }
+    final comic = Uint8List(n * 4), gray = Uint8List(n * 4);
     final cols = (w / cell).ceil(), rows = (h / cell).ceil();
     final ink = Float32List(cols * rows);
     final count = Float32List(cols * rows);
-    int q(double v) => ((v.clamp(0, 255) / 255 * 3).round() / 3 * 255).round();
+    int byte(double v) => v.round().clamp(0, 255);
     for (var y = 0; y < h; y++) {
       for (var x = 0; x < w; x++) {
-        final i = (y * w + x) * 4;
-        final r = px[i].toDouble(), g = px[i + 1].toDouble();
-        final b = px[i + 2].toDouble();
-        final l = 0.3 * r + 0.59 * g + 0.11 * b;
-        // Brighter colours, then only four steps of each.
-        final pr = q(l + (r - l) * 1.7);
-        final pg = q(l + (g - l) * 1.7);
-        final pb = q(l + (b - l) * 1.7);
-        comic[i] = (pr * 0.82 + _paper[0] * 0.18).round();
-        comic[i + 1] = (pg * 0.82 + _paper[1] * 0.18).round();
-        comic[i + 2] = (pb * 0.82 + _paper[2] * 0.18).round();
-        final m = (pr + pg + pb) / 3 * 0.85 + 30;
-        gray[i] = m.round().clamp(0, 255);
-        gray[i + 1] = m.round().clamp(0, 255);
-        gray[i + 2] = (m * 0.95).round().clamp(0, 255);
+        final p = y * w + x, i = p * 4;
+        final l = lum[p];
+        // More contrast, then mostly flat bands with soft steps.
+        final lc = ((l - 128) * 1.25 + 132).clamp(0.0, 255.0);
+        final t = lc / 255 * _bands;
+        final f = t - t.floorToDouble();
+        final smooth = 0.5 + (f * f * (3 - 2 * f) - 0.5) * 0.35;
+        final lq = math.min(255.0, (t.floorToDouble() + smooth) / _bands * 255);
+        // Ink where the brightness jumps: the outlines of a drawing.
+        var edge = 0.0;
+        if (x > 0 && x < w - 1 && y > 0 && y < h - 1) {
+          final gx = lum[p + 1] - lum[p - 1], gy = lum[p + w] - lum[p - w];
+          edge = ((math.sqrt(gx * gx + gy * gy) - 45) / 40).clamp(0.0, 1.0);
+        }
+        double inked(double v) => v * (1 - edge) + 20 * edge;
+        for (var k = 0; k < 3; k++) {
+          comic[i + k] = byte(inked(lq + (soft[p * 3 + k] - l) * 1.35));
+        }
+        final v = inked(lq * 0.9 + 20);
+        gray[i] = gray[i + 1] = byte(v);
+        gray[i + 2] = byte(v * 0.96);
         comic[i + 3] = gray[i + 3] = 255;
         final c = (y ~/ cell) * cols + x ~/ cell;
-        ink[c] += 1 - l / 255;
+        ink[c] += 1 - lc / 255;
         count[c] += 1;
       }
     }
     for (var c = 0; c < ink.length; c++) {
-      if (count[c] > 0) ink[c] /= count[c];
+      // Dots only in the darker parts, so faces stay clean.
+      final dark = count[c] > 0 ? ink[c] / count[c] : 0.0;
+      ink[c] = ((dark - 0.38) / 0.62).clamp(0.0, 1.0);
     }
     return FrozenFrame._(
       color: color,
@@ -107,6 +124,41 @@ class FrozenFrame {
       rows: rows,
       ink: ink,
     );
+  }
+
+  static const _bands = 5;
+
+  /// RGB of [px] after two passes of a 3 × 3 box blur.
+  static Float32List _soften(Uint8List px, int w, int h) {
+    var a = Float32List(w * h * 3);
+    for (var p = 0; p < w * h; p++) {
+      a[p * 3] = px[p * 4].toDouble();
+      a[p * 3 + 1] = px[p * 4 + 1].toDouble();
+      a[p * 3 + 2] = px[p * 4 + 2].toDouble();
+    }
+    for (var pass = 0; pass < 2; pass++) {
+      final b = Float32List(a.length);
+      for (var y = 0; y < h; y++) {
+        for (var x = 0; x < w; x++) {
+          for (var k = 0; k < 3; k++) {
+            var sum = 0.0, n = 0;
+            for (var dy = -1; dy <= 1; dy++) {
+              final yy = y + dy;
+              if (yy < 0 || yy >= h) continue;
+              for (var dx = -1; dx <= 1; dx++) {
+                final xx = x + dx;
+                if (xx < 0 || xx >= w) continue;
+                sum += a[(yy * w + xx) * 3 + k];
+                n++;
+              }
+            }
+            b[(y * w + x) * 3 + k] = sum / n;
+          }
+        }
+      }
+      a = b;
+    }
+    return a;
   }
 
   static Future<ui.Image> _image(Uint8List px, int w, int h) {
@@ -209,8 +261,8 @@ class ComicFramePainter extends CustomPainter {
     // Halftone: a dot per cell, bigger where the picture is darker.
     final dots = Paint()
       ..color = Color.lerp(
-        const Color(0x8C1E0C28),
-        const Color(0x99191420),
+        const Color(0x5A1E0C28),
+        const Color(0x66191420),
         grayness,
       )!;
     final cell = FrozenFrame.cell * scale;
@@ -221,7 +273,7 @@ class ComicFramePainter extends CustomPainter {
       for (var c = 0; c < frame.cols; c++) {
         final x = (c * FrozenFrame.cell - sx) * scale + cell / 2 + shift;
         if (x < -cell || x > size.width + cell) continue;
-        final rad = frame.ink[r * frame.cols + c] * cell * 0.62;
+        final rad = frame.ink[r * frame.cols + c] * cell * 0.55;
         if (rad > 0.6) canvas.drawCircle(Offset(x, y), rad, dots);
       }
     }
@@ -317,7 +369,7 @@ class ComicOutFace extends StatelessWidget {
             painter: ComicFramePainter(
               frame: f,
               grayness: 1,
-              focus: const Offset(0.5, 0.36),
+              focus: const Offset(0.5, 0.42),
             ),
           )
         else ...[

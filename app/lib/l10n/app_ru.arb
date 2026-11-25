@@ -260,6 +260,7 @@
   "storyOutWord": "ВОН!",
   "storyShotAt": "Мафия стреляет в игрока {name}…",
   "storySaved": "…но Доктор {name} успевает на помощь!",
+  "storySavedSelf": "…но Доктор {name} успевает вылечить себя!",
   "storyKilled": "…и {name} выбывает из игры.",
   "storyNoShot": "Этой ночью Мафия ни в кого не стреляет.",
   "storyCheck": "Комиссар {checker} проверяет игрока {name}…",

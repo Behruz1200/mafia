@@ -599,18 +599,36 @@ class InkedText extends StatelessWidget {
 
 /// A big sound word, like BANG! or SAVED!
 class ComicWord extends StatelessWidget {
-  const ComicWord(this.text, {super.key, required this.color, this.size = 40});
+  const ComicWord(
+    this.text, {
+    super.key,
+    required this.color,
+    this.size = 40,
+    this.maxWidth,
+  });
 
   final String text;
   final Color color;
   final double size;
 
+  /// Long words (Russian, Uzbek) shrink to this width so they stay inside
+  /// the panel.
+  final double? maxWidth;
+
   @override
-  Widget build(BuildContext context) => InkedText(
-    text,
-    style: Comic.lettersFor(text, size, color: color),
-    strokeWidth: size / 7,
-  );
+  Widget build(BuildContext context) {
+    final word = InkedText(
+      text,
+      style: Comic.lettersFor(text, size, color: color),
+      strokeWidth: size / 7,
+    );
+    final max = maxWidth;
+    if (max == null) return word;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: max),
+      child: FittedBox(fit: BoxFit.scaleDown, child: word),
+    );
+  }
 }
 
 enum Backdrop { night, day, townWin, mafiaWin }

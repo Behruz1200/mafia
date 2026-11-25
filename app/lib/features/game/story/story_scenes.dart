@@ -50,7 +50,9 @@ typedef Caption = ({double at, String text});
       (
         at: scene.bodyguard == null ? 2.1 : 3.3,
         text: doctor != null
-            ? t.storySaved(c.name(doctor))
+            ? (scene.selfHeal
+                  ? t.storySavedSelf(c.name(doctor))
+                  : t.storySaved(c.name(doctor)))
             : scene.immortal
             ? t.storyImmortal(c.name(scene.hit))
             : t.storyKilled(c.name(scene.hit)),
@@ -306,7 +308,11 @@ class _Scene {
         s.target,
         310,
         left: true,
-        face: ComicFace.scared,
+        // Saved players cheer up once the shield has caught the bullet.
+        face: s.saved && t > 2.15 ? ComicFace.smile : ComicFace.scared,
+        // A Doctor who healed themself is drawn once, pointing at the shield.
+        arm: s.selfHeal ? lerp(armDown, -0.35, p(1.15, 0.4, _pop)) : armDown,
+        tool: s.selfHeal ? ArmTool.point : ArmTool.none,
         shift:
             slideIn(0.1, fromRight: true) +
             Offset(guard == null ? shake(1.45, 0.9) : 0, 0),
@@ -323,7 +329,8 @@ class _Scene {
           arm: armUp - 0.4,
           shift: dropIn(0.9) + Offset(shake(1.85, 0.6), 0),
           angle: fall * 0.35,
-          opacity: 1 - fall * 0.45,
+          // Hidden until it drops, so its name tag doesn't hang in the sky.
+          opacity: t < 0.9 ? 0 : 1 - fall * 0.45,
           grey: killed && t > 1.9,
         ),
       if (shooter != null)
@@ -335,7 +342,7 @@ class _Scene {
           tool: ArmTool.gun,
           shift: slideIn(0.2),
         ),
-      if (s.doctor case final doctor? when guard == null)
+      if (s.doctor case final doctor? when guard == null && !s.selfHeal)
         figure(
           doctor,
           244,
@@ -343,6 +350,7 @@ class _Scene {
           arm: -0.35,
           tool: ArmTool.point,
           shift: dropIn(1.15),
+          opacity: t < 1.15 ? 0 : 1,
         ),
       if (s.saved || s.immortal)
         popAt(200, muzzleY, 1.55, const ComicShield(), dur: 0.3),
@@ -362,15 +370,21 @@ class _Scene {
         ),
       popAt(150, muzzleY - 48, 1.38, ComicBurst(l.storyBang), dur: 0.35),
       if (s.saved)
-        popAt(250, 110, 2.15, ComicWord(l.storySavedWord, color: Palette.cyan)),
+        popAt(
+          232,
+          110,
+          2.15,
+          ComicWord(l.storySavedWord, color: Palette.cyan, maxWidth: 224),
+        ),
       if (s.immortal)
         popAt(
-          250,
+          232,
           110,
           2.15,
           ComicWord(
             l.roleName(Role.immortal).toUpperCase(),
             color: Palette.gold,
+            maxWidth: 224,
           ),
         ),
       if (killed && t > 2.3)
@@ -594,7 +608,12 @@ class _Scene {
                 angle: -14 * math.pi / 180,
                 child: Transform.scale(
                   scale: lerp(2.6, 1, p(2.75, 0.4, Curves.easeOutBack)),
-                  child: ComicWord(l.storyOutWord, color: Comic.red, size: 44),
+                  child: ComicWord(
+                    l.storyOutWord,
+                    color: Comic.red,
+                    size: 44,
+                    maxWidth: 112,
+                  ),
                 ),
               ),
             ),
@@ -651,6 +670,7 @@ class _Scene {
             face: town ? ComicFace.smile : ComicFace.smirk,
             arm: jumping ? armUp - 0.9 : armDown,
             shift: dropIn(d - 0.3, 0.5),
+            opacity: t < d - 0.3 ? 0 : 1,
             lift: -34 * math.sin(math.pi * phase),
           );
         }(),
@@ -666,6 +686,7 @@ class _Scene {
           }.toUpperCase(),
           color: Comic.yellow,
           size: 38,
+          maxWidth: 330,
         ),
       ),
       if (iPlayed)
