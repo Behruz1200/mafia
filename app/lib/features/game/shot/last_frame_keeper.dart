@@ -58,7 +58,12 @@ class _LastFrameKeeperState extends ConsumerState<LastFrameKeeper> {
     if (grabber == null) return;
     _busy = true;
     try {
-      final bytes = await grabber.grab();
+      // A grab waits for the camera's next frame, which never comes if the
+      // camera stops; don't let that block every later grab.
+      final bytes = await grabber.grab().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => null,
+      );
       if (bytes == null) return;
       final frame = await FrozenFrame.fromEncoded(bytes);
       if (frame == null) return;

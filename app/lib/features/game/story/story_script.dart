@@ -138,6 +138,9 @@ class ShotScene extends StoryScene {
 
   bool get saved => doctor != null;
 
+  /// The Doctor healed themself, and the shot was at them.
+  bool get selfHeal => doctor != null && doctor == hit;
+
   /// Who the shot hit.
   UserId get hit => bodyguard ?? target;
 

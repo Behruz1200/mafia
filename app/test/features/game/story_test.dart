@@ -2,6 +2,7 @@ import 'package:contracts/contracts.dart';
 import 'package:contracts/testing.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mafia_app/features/game/game_screen.dart';
+import 'package:mafia_app/features/game/story/comic_art.dart';
 import 'package:mafia_app/features/game/story/story_scenes.dart';
 import 'package:mafia_app/features/game/story/story_script.dart';
 import 'package:mafia_app/features/game/story/story_view.dart';
@@ -132,6 +133,60 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  testWidgets('a Doctor who healed themself is drawn once', (tester) async {
+    tester.view.physicalSize = const Size(360 * 3, 740 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final base = storyResult();
+    final r = MatchResult(
+      roomId: base.roomId,
+      matchId: base.matchId,
+      stake: base.stake,
+      winningTeam: base.winningTeam,
+      winners: base.winners,
+      losers: base.losers,
+      roles: base.roles,
+      story: const MatchStory(
+        nights: [
+          StoryNight(
+            round: 1,
+            target: 'user_2',
+            shooters: ['user_6'],
+            doctorId: 'user_2',
+            healed: 'user_2',
+            saved: true,
+          ),
+        ],
+      ),
+      endedAt: base.endedAt,
+    );
+    final shot = storyScenes(r).whereType<ShotScene>().single;
+    expect(shot.selfHeal, isTrue);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          ...GlobalMaterialLocalizations.delegates,
+        ],
+        home: StoryPlayer(result: r, cast: _cast(r)),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 2600));
+    expect(
+      find.text('…but Doctor Dilnoza healed themself in time!'),
+      findsOneWidget,
+    );
+    final doctors = find.byWidgetPredicate(
+      (w) => w is ComicNameTag && w.name == 'Dilnoza',
+    );
+    expect(doctors, findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   for (final lang in ['en', 'uz', 'ru']) {
     testWidgets('every scene draws in $lang without overflow', (tester) async {

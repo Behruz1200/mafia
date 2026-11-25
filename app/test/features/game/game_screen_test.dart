@@ -636,21 +636,41 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     }
 
-    testWidgets('a night kill plays the comic shot, then the seat keeps it', (
-      tester,
-    ) async {
-      await endLastWord(tester, EliminationCause.killedAtNight, GamePhase.day);
-      expect(find.byKey(const ValueKey('shot-panel')), findsOneWidget);
-      expect(find.text('A SHOT IN THE NIGHT…'), findsOneWidget);
+    testWidgets(
+      'a night kill plays the comic shot on the seat, which keeps it',
+      (tester) async {
+        await endLastWord(
+          tester,
+          EliminationCause.killedAtNight,
+          GamePhase.day,
+        );
+        final seat = find.byKey(const ValueKey('seat-user_4'));
+        expect(
+          find.descendant(
+            of: seat,
+            matching: find.byKey(const ValueKey('shot-panel')),
+          ),
+          findsOneWidget,
+        );
 
-      await tester.pump(const Duration(milliseconds: 1800));
-      expect(find.text('KAMOLA IS OUT!'), findsOneWidget);
+        await tester.pump(const Duration(milliseconds: 1800));
+        expect(
+          find.descendant(of: seat, matching: find.text('BANG!')),
+          findsWidgets,
+        );
 
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('shot-panel')), findsNothing);
-      expect(find.byKey(const ValueKey('comic-out-face')), findsOneWidget);
-      expect(find.text('Out'), findsOneWidget);
-    });
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('shot-panel')), findsNothing);
+        expect(
+          find.descendant(
+            of: seat,
+            matching: find.byKey(const ValueKey('comic-out-face')),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Out'), findsOneWidget);
+      },
+    );
 
     testWidgets('a day vote stamps VOTED OUT instead of shooting', (
       tester,
@@ -658,7 +678,7 @@ void main() {
       await endLastWord(tester, EliminationCause.votedOut, GamePhase.night);
       await tester.pump(const Duration(milliseconds: 600));
       expect(find.text('VOTED OUT'), findsWidgets);
-      expect(find.text('A SHOT IN THE NIGHT…'), findsNothing);
+      expect(find.text('BANG!'), findsNothing);
 
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('shot-panel')), findsNothing);

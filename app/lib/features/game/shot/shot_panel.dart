@@ -10,10 +10,11 @@ import 'frozen_frame.dart';
 /// How a player left the table, for [ShotPanel].
 enum OutKind { shot, votedOut }
 
-/// The comic panel that plays when a player's last word ends: their camera
-/// freezes on its last picture, turns into a comic, and then the Mafia's
-/// shot lands (a crosshair, a cartoon bullet and a BANG!), or, for a day
-/// vote, a VOTED OUT stamp. Plays once, then folds away and calls [onDone].
+/// The comic that plays on a player's own seat when their last word ends:
+/// their camera freezes on its last picture, turns into a comic, and then
+/// the Mafia's shot lands (a crosshair, a cartoon bullet and a BANG!), or,
+/// for a day vote, a VOTED OUT stamp. Fills its box, plays once, ends on
+/// the grey comic their seat keeps, and calls [onDone].
 ///
 /// Everyone at the table sees it, the player who is out too. Nothing here
 /// says who fired: the Maniac shoots at night as well.
@@ -68,38 +69,16 @@ class _ShotPanelState extends State<ShotPanel>
       builder: (context, _) {
         final s = _s;
         final shot = widget.kind == OutKind.shot;
-        final end = _c.duration!.inMilliseconds / 1000;
-        final fold = _ease(_span(s, end - 0.45, end));
-        // When the shot lands the panel shakes; a vote's stamp, a little.
+        // When the shot lands the picture shakes; a vote's stamp, a little.
         final hit = shot ? 2.2 : 0.85;
-        final shake = (1 - _span(s, hit, hit + 0.4)) * (shot ? 7 : 4);
+        final shake = (1 - _span(s, hit, hit + 0.4)) * (shot ? 5 : 3);
         final shaking = s >= hit && s < hit + 0.4;
-        return Align(
-          alignment: Alignment.topCenter,
-          heightFactor: 1 - fold,
-          child: Opacity(
-            opacity: 1 - fold,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Transform.translate(
-                offset: shaking
-                    ? Offset(
-                        math.sin(s * 170) * shake,
-                        math.cos(s * 130) * shake,
-                      )
-                    : Offset.zero,
-                child: AspectRatio(
-                  aspectRatio: 4 / 3,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(GameStyle.radius),
-                    child: LayoutBuilder(
-                      builder: (context, box) =>
-                          _panel(t, box.biggest, s, shot),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+        return Transform.translate(
+          offset: shaking
+              ? Offset(math.sin(s * 170) * shake, math.cos(s * 130) * shake)
+              : Offset.zero,
+          child: LayoutBuilder(
+            builder: (context, box) => _panel(t, box.biggest, s, shot),
           ),
         );
       },
@@ -124,7 +103,7 @@ class _ShotPanelState extends State<ShotPanel>
               frame: frame,
               colorness: 1 - comic,
               grayness: gray,
-              border: 6 * comic,
+              border: math.max(3, 6 * size.shortestSide / 300) * comic,
               focus: const Offset(0.5, 0.42),
             ),
           )
@@ -171,18 +150,21 @@ class _ShotPanelState extends State<ShotPanel>
           Positioned(
             left: 0,
             right: 0,
-            top: size.height * 0.52,
+            top: size.height * 0.46,
             child: Center(
               child: Transform.scale(
                 scale: 1.8 - 0.8 * _backOut(_span(s, 0.85, 1.1)),
                 child: Transform.rotate(
                   angle: -0.12,
-                  child: _Stamp(text: t.shotStampVotedOut),
+                  child: SizedBox(
+                    width: size.width * 0.86,
+                    child: FittedBox(child: _Stamp(text: t.shotStampVotedOut)),
+                  ),
                 ),
               ),
             ),
           ),
-        if (s >= 0.4)
+        if (s >= 0.4 && size.width >= 200)
           Positioned(
             left: 12,
             top: 12,
@@ -290,11 +272,16 @@ class _LetterPanel extends StatelessWidget {
         ),
         Align(
           alignment: const Alignment(0, -0.1),
-          child: Text(
-            name.isEmpty ? '?' : name.characters.first.toUpperCase(),
-            style: Comic.letters(
-              120,
-              color: Colors.white.withValues(alpha: 0.8),
+          child: FractionallySizedBox(
+            heightFactor: 0.5,
+            child: FittedBox(
+              child: Text(
+                name.isEmpty ? '?' : name.characters.first.toUpperCase(),
+                style: Comic.letters(
+                  120,
+                  color: Colors.white.withValues(alpha: 0.8),
+                ),
+              ),
             ),
           ),
         ),
@@ -302,7 +289,7 @@ class _LetterPanel extends StatelessWidget {
           decoration: BoxDecoration(
             border: Border.all(
               color: Comic.ink.withValues(alpha: comic),
-              width: 6,
+              width: 4,
             ),
           ),
         ),

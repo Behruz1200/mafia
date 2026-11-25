@@ -260,6 +260,7 @@
   "storyOutWord": "CHIQDI!",
   "storyShotAt": "Mafia {name} tomon o‘q uzdi…",
   "storySaved": "…lekin Shifokor {name} uni qutqarib qoldi!",
+  "storySavedSelf": "…lekin Shifokor {name} o‘zini davolab ulgurdi!",
   "storyKilled": "…va {name} o‘yindan chiqdi.",
   "storyNoShot": "Bu tun Mafia hech kimga o‘q uzmadi.",
   "storyCheck": "Komissar {checker} tekshirdi: {name}…",

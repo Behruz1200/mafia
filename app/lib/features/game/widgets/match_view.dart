@@ -249,23 +249,6 @@ class _MatchViewState extends State<MatchView> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             children: [
-              for (final p in _playing)
-                Consumer(
-                  key: ValueKey('shot-${p.id}'),
-                  builder: (context, ref, _) {
-                    ref.watch(frozenFramesProvider);
-                    return ShotPanel(
-                      kind: p.kind,
-                      name: p.id == widget.me ? t.gameYou : _name(p.id),
-                      frame: ref
-                          .read(frozenFramesProvider.notifier)
-                          .forMatch(s.matchId)[p.id],
-                      onDone: () => setState(
-                        () => _playing.removeWhere((q) => q.id == p.id),
-                      ),
-                    );
-                  },
-                ),
               if (speaker != null) ...[
                 LastFrameKeeper(
                   key: ValueKey('keep-${s.matchId}-$speaker'),
@@ -304,8 +287,28 @@ class _MatchViewState extends State<MatchView> {
                   },
                   highlight: speaker,
                   outFace: (id, placeholder) {
-                    // The seat turns into a comic once their panel is over.
-                    if (_playing.any((p) => p.id == id)) return null;
+                    // Their last word just ended: the shot plays right on
+                    // their seat, then the seat keeps the grey comic.
+                    final playing = _playing.where((p) => p.id == id);
+                    if (playing.isNotEmpty) {
+                      final p = playing.first;
+                      return Consumer(
+                        key: ValueKey('shot-$id'),
+                        builder: (context, ref, _) {
+                          ref.watch(frozenFramesProvider);
+                          return ShotPanel(
+                            kind: p.kind,
+                            name: _name(id),
+                            frame: ref
+                                .read(frozenFramesProvider.notifier)
+                                .forMatch(s.matchId)[id],
+                            onDone: () => setState(
+                              () => _playing.removeWhere((q) => q.id == id),
+                            ),
+                          );
+                        },
+                      );
+                    }
                     final cause = outCause(s, id);
                     if (cause != EliminationCause.killedAtNight &&
                         cause != EliminationCause.votedOut) {

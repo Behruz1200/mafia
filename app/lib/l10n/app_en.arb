@@ -299,6 +299,8 @@
   "@storyShotAt": {"placeholders": {"name": {"type": "String"}}},
   "storySaved": "…but Doctor {name} saved them!",
   "@storySaved": {"placeholders": {"name": {"type": "String"}}},
+  "storySavedSelf": "…but Doctor {name} healed themself in time!",
+  "@storySavedSelf": {"placeholders": {"name": {"type": "String"}}},
   "storyKilled": "…and {name} is out of the game.",
   "@storyKilled": {"placeholders": {"name": {"type": "String"}}},
   "storyNoShot": "The Mafia did not shoot anyone tonight.",
