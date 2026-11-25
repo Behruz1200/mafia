@@ -13,7 +13,6 @@ import '../ui/game_text.dart';
 import 'chat_panel.dart';
 import 'phase_header.dart';
 import 'player_table.dart';
-import 'vote_board.dart';
 import 'role_card.dart';
 import 'skip_timer_bar.dart';
 
@@ -273,7 +272,15 @@ class _MatchViewState extends State<MatchView> {
                   players: s.players,
                   me: widget.me,
                   private: widget.private,
-                  votes: s.phase == GamePhase.voting ? s.votes : const {},
+                  // Open voting, on the seats: live while the vote runs,
+                  // then how it ended (hidden at night, when seats are
+                  // for night picks).
+                  votes: switch (s.phase) {
+                    GamePhase.voting => s.votes,
+                    GamePhase.lastWord || GamePhase.day => s.lastVotes,
+                    _ => const {},
+                  },
+                  votesSettled: s.phase != GamePhase.voting,
                   selectable: _sending ? const {} : targets,
                   selected: _selected,
                   onSelect: (u) => setState(() => _selected = u),
@@ -334,6 +341,10 @@ class _MatchViewState extends State<MatchView> {
               _Prompt(
                 text: _promptText(t, action),
                 latest: events.firstOrNull,
+                // Open voting: how many have voted, beside what to do.
+                badge: s.phase == GamePhase.voting
+                    ? t.gameVoteBoardCount(s.votes.length, s.alive.length)
+                    : null,
                 icon: lastWord
                     ? Icons.record_voice_over_rounded
                     : !_meAlive
@@ -353,26 +364,6 @@ class _MatchViewState extends State<MatchView> {
                     ? GameStyle.crimson
                     : GameStyle.gold,
               ),
-              // Open voting: everyone sees who votes for whom, live. Under the
-              // prompt, so what to do stays near the cameras.
-              if (s.phase == GamePhase.voting) ...[
-                const SizedBox(height: 12),
-                VoteBoard(
-                  votes: s.votes,
-                  players: s.players,
-                  me: widget.me,
-                  live: true,
-                ),
-              ],
-              // How the last vote went, until the next one.
-              if (s.phase != GamePhase.voting && s.lastVotes.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                VoteBoard(
-                  votes: s.lastVotes,
-                  players: s.players,
-                  me: widget.me,
-                ),
-              ],
               const SizedBox(height: 12),
               ChatPanel(
                 roomId: widget.roomId,
@@ -580,12 +571,16 @@ class _Prompt extends StatelessWidget {
     required this.icon,
     required this.color,
     this.latest,
+    this.badge,
   });
 
   final String text;
   final IconData icon;
   final Color color;
   final String? latest;
+
+  /// A short count on the right, e.g. "3 of 8 voted".
+  final String? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -619,6 +614,23 @@ class _Prompt extends StatelessWidget {
               ],
             ),
           ),
+          if (badge != null)
+            Container(
+              key: const ValueKey('vote-count'),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: GameStyle.crimson.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                badge!,
+                style: const TextStyle(
+                  color: GameStyle.crimson,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
+              ),
+            ),
         ],
       ),
     );

@@ -210,81 +210,93 @@ void main() {
     expect(find.text('Vote for who should leave the table'), findsOneWidget);
     expect(
       find.descendant(
-        of: find.byKey(const ValueKey('seat-user_3')),
+        of: find.byKey(const ValueKey('vote-count-user_3')),
         matching: find.text('2'),
       ),
       findsOneWidget,
     );
+    // Under the count, the seats of who voted for them.
+    for (final n in ['2', '3']) {
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('seat-user_3')),
+          matching: find.text(n),
+        ),
+        findsWidgets,
+      );
+    }
     expect(find.text('Otabek was eliminated in the night'), findsOneWidget);
 
-    // Open voting: who voted for whom, and who has not voted yet.
-    final board = find.byKey(const ValueKey('vote-board'));
-    expect(board, findsOneWidget);
-    final row = find.byKey(const ValueKey('vote-row-user_3'));
+    // Open voting, on the seats: each voter's seat names who they voted
+    // for, and the prompt counts who has voted. No list under the table.
     for (final voter in ['user_1', 'user_2']) {
       expect(
-        find.descendant(of: row, matching: find.text(_name(voter))),
+        find.descendant(
+          of: find.byKey(ValueKey('vote-pill-$voter')),
+          matching: find.text('4 · ${_name('user_3')}'),
+        ),
         findsOneWidget,
       );
     }
-    expect(
-      find.descendant(of: board, matching: find.text('2 of 8 voted')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('vote-row-waiting')),
-        matching: find.text('You'),
-      ),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('vote-pill-user_0')), findsNothing);
+    expect(find.text('2 of 8 voted'), findsOneWidget);
+    expect(find.byKey(const ValueKey('vote-board')), findsNothing);
 
     await tester.tap(find.text('Skip'));
     await tester.pump();
     expect((repo.sent.single as CastVote).targetId, isNull);
   });
 
-  testWidgets('after the vote everyone still sees who voted for whom', (
+  testWidgets('after the vote the seats still show who voted for whom', (
     tester,
   ) async {
     final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
-    repo.emitPublic(
-      PublicGameState(
-        roomId: 'room_1',
-        matchId: 'match_1',
-        phase: GamePhase.night,
-        round: 2,
-        players: samplePlayers(8),
-        lastVotes: const {
-          'user_0': 'user_4',
-          'user_1': 'user_4',
-          'user_2': null,
-        },
-      ),
+    PublicGameState at(GamePhase phase) => PublicGameState(
+      roomId: 'room_1',
+      matchId: 'match_1',
+      phase: phase,
+      round: 2,
+      players: samplePlayers(8),
+      lastVotes: const {'user_0': 'user_4', 'user_1': 'user_4', 'user_2': null},
     );
+    repo.emitPublic(at(GamePhase.day));
     await tester.pumpAndSettle();
-    final board = find.byKey(const ValueKey('vote-board'));
-    await tester.scrollUntilVisible(
-      board,
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
     expect(
-      find.descendant(of: board, matching: find.text('HOW THE TOWN VOTED')),
-      findsOneWidget,
-    );
-    final row = find.byKey(const ValueKey('vote-row-user_4'));
-    expect(
-      find.descendant(of: row, matching: find.text('You')),
+      find.descendant(
+        of: find.byKey(const ValueKey('vote-pill-user_1')),
+        matching: find.text('5 · ${_name('user_4')}'),
+      ),
       findsOneWidget,
     );
     expect(
       find.descendant(
-        of: find.byKey(const ValueKey('vote-row-skip')),
-        matching: find.text(_name('user_2')),
+        of: find.byKey(const ValueKey('vote-pill-user_2')),
+        matching: find.text('Skipped'),
       ),
       findsOneWidget,
     );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('vote-count-user_4')),
+        matching: find.text('2'),
+      ),
+      findsOneWidget,
+    );
+
+    // The full-screen camera says it too.
+    await tester.tap(find.byKey(const ValueKey('seat-user_4')));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Votes from 1 · You, 2 · ${_name('user_1')}'),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('close-seat-camera')));
+    await tester.pumpAndSettle();
+
+    // At night the seats are for night picks: no votes on them.
+    repo.emitPublic(at(GamePhase.night));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('vote-pill-user_1')), findsNothing);
   });
 
   testWidgets('results show the winner and the lost stake', (tester) async {

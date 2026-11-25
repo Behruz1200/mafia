@@ -25,6 +25,7 @@ class PlayerTable extends StatelessWidget {
     required this.me,
     this.private,
     this.votes = const {},
+    this.votesSettled = false,
     this.selectable = const {},
     this.selected,
     this.onSelect,
@@ -38,7 +39,14 @@ class PlayerTable extends StatelessWidget {
   final List<Player> players;
   final UserId? me;
   final PrivatePlayerState? private;
+
+  /// Open votes, voter -> target (null: skipped). Each voter's seat says
+  /// who they voted for, and each target's seat how many votes it has.
   final Map<UserId, UserId?> votes;
+
+  /// [votes] is how the last vote ended, not a vote still running: shown
+  /// quieter.
+  final bool votesSettled;
   final Set<UserId> selectable;
   final UserId? selected;
   final ValueChanged<UserId>? onSelect;
@@ -67,8 +75,20 @@ class PlayerTable extends StatelessWidget {
     // With nobody to pick, a tap opens the camera full screen; while
     // picking, a tap picks and holding still opens it.
     final picking = selectable.isNotEmpty && onSelect != null;
-    void view(UserId id) =>
-        showSeatCameras(context, seats: seats, start: id, me: me, face: face!);
+    final byId = {for (final p in seats) p.userId: p};
+    final voters = <UserId, List<int>>{};
+    for (final p in seats) {
+      final target = votes[p.userId];
+      if (target != null) (voters[target] ??= []).add(p.seat + 1);
+    }
+    void view(UserId id) => showSeatCameras(
+      context,
+      seats: seats,
+      start: id,
+      me: me,
+      face: face!,
+      votes: votes,
+    );
     return LayoutBuilder(
       builder: (context, c) {
         final columns = columnsFor(c.maxWidth, seats.length);
@@ -94,6 +114,14 @@ class PlayerTable extends StatelessWidget {
               detective: private?.detectiveChecks[p.userId],
               votes: tally[p.userId] ?? 0,
               myVote: me != null && votes[me] == p.userId,
+              vote: !votes.containsKey(p.userId)
+                  ? null
+                  : SeatVote(
+                      target: byId[votes[p.userId]],
+                      targetIsMe: votes[p.userId] == me,
+                    ),
+              votesSettled: votesSettled,
+              voterSeats: voters[p.userId] ?? const [],
               selectable: selectable.contains(p.userId),
               selected: selected == p.userId,
               face: face,
@@ -135,6 +163,9 @@ class SeatTile extends StatelessWidget {
     this.detective,
     this.votes = 0,
     this.myVote = false,
+    this.vote,
+    this.votesSettled = false,
+    this.voterSeats = const [],
     this.selectable = false,
     this.selected = false,
     this.face,
@@ -155,6 +186,15 @@ class SeatTile extends StatelessWidget {
   final bool? detective;
   final int votes;
   final bool myVote;
+
+  /// Who this player voted for, if they voted.
+  final SeatVote? vote;
+
+  /// The votes are how the last vote ended: shown quieter.
+  final bool votesSettled;
+
+  /// Seat numbers of who voted for this player, under the vote count.
+  final List<int> voterSeats;
   final bool selectable;
   final bool selected;
   final SeatFace? face;
@@ -293,26 +333,49 @@ class SeatTile extends StatelessWidget {
                     Positioned(
                       right: 5,
                       top: 5,
-                      child: Tooltip(
-                        message: t.gameVotes(votes),
-                        child: Container(
-                          constraints: const BoxConstraints(minWidth: 24),
-                          height: 24,
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: myVote ? Palette.gold : Palette.accent,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '$votes',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: myVote ? Palette.background : Colors.white,
+                      child: Column(
+                        spacing: 3,
+                        children: [
+                          Tooltip(
+                            message: t.gameVotes(votes),
+                            child: Container(
+                              key: ValueKey('vote-count-${player.userId}'),
+                              constraints: const BoxConstraints(minWidth: 24),
+                              height: 24,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                              ),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: votesSettled
+                                    ? Palette.surfaceHigh
+                                    : myVote
+                                    ? Palette.gold
+                                    : Palette.accent,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '$votes',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: myVote && !votesSettled
+                                      ? Palette.background
+                                      : Colors.white,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                          for (final n in voterSeats.take(
+                            voterSeats.length > 4 ? 3 : 4,
+                          ))
+                            _VoterDot(text: '$n', settled: votesSettled),
+                          if (voterSeats.length > 4)
+                            _VoterDot(
+                              text: '+${voterSeats.length - 3}',
+                              settled: votesSettled,
+                            ),
+                        ],
                       ),
                     ),
                   Positioned(
@@ -322,6 +385,17 @@ class SeatTile extends StatelessWidget {
                     child: Column(
                       spacing: 4,
                       children: [
+                        if (vote != null)
+                          _VotePill(
+                            key: ValueKey('vote-pill-${player.userId}'),
+                            text: vote!.target == null
+                                ? t.gameVoteBoardSkipped
+                                : '${vote!.target!.seat + 1} · '
+                                      '${vote!.targetIsMe ? t.gameYou : vote!.target!.displayName}',
+                            skipped: vote!.target == null,
+                            mine: isMe,
+                            settled: votesSettled,
+                          ),
                         ?tag,
                         Text(
                           name,
@@ -415,6 +489,7 @@ Future<void> showSeatCameras(
   required UserId start,
   required UserId? me,
   required SeatFace face,
+  Map<UserId, UserId?> votes = const {},
 }) {
   return Navigator.of(context).push(
     PageRouteBuilder<void>(
@@ -422,8 +497,13 @@ Future<void> showSeatCameras(
       barrierColor: Colors.black,
       transitionDuration: const Duration(milliseconds: 180),
       reverseTransitionDuration: const Duration(milliseconds: 150),
-      pageBuilder: (context, _, _) =>
-          SeatCameraViewer(seats: seats, start: start, me: me, face: face),
+      pageBuilder: (context, _, _) => SeatCameraViewer(
+        seats: seats,
+        start: start,
+        me: me,
+        face: face,
+        votes: votes,
+      ),
       transitionsBuilder: (context, animation, _, child) => FadeTransition(
         opacity: animation,
         child: ScaleTransition(
@@ -446,12 +526,17 @@ class SeatCameraViewer extends StatefulWidget {
     required this.start,
     required this.me,
     required this.face,
+    this.votes = const {},
   });
 
   final List<Player> seats;
   final UserId start;
   final UserId? me;
   final SeatFace face;
+
+  /// Open votes (voter -> target), to say who this player voted for and
+  /// who voted for them.
+  final Map<UserId, UserId?> votes;
 
   @override
   State<SeatCameraViewer> createState() => _SeatCameraViewerState();
@@ -482,7 +567,26 @@ class _SeatCameraViewerState extends State<SeatCameraViewer> {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     final p = widget.seats[_index];
-    final name = p.userId == widget.me ? t.gameYou : p.displayName;
+    String nameOf(Player q) =>
+        q.userId == widget.me ? t.gameYou : q.displayName;
+    final name = nameOf(p);
+    final byId = {for (final q in widget.seats) q.userId: q};
+    final voted = widget.votes.containsKey(p.userId);
+    final target = byId[widget.votes[p.userId]];
+    final from = [
+      for (final q in widget.seats)
+        if (widget.votes[q.userId] == p.userId) q,
+    ];
+    final voteLines = [
+      if (voted)
+        target == null
+            ? t.gameVoteBoardSkipped
+            : t.gameVotedFor('${target.seat + 1} · ${nameOf(target)}'),
+      if (from.isNotEmpty)
+        t.gameVotesFrom(
+          [for (final q in from) '${q.seat + 1} · ${nameOf(q)}'].join(', '),
+        ),
+    ];
     return Material(
       key: const ValueKey('seat-camera-viewer'),
       color: Colors.black,
@@ -540,6 +644,29 @@ class _SeatCameraViewerState extends State<SeatCameraViewer> {
                   overflow: TextOverflow.ellipsis,
                   style: GameStyle.display(26),
                 ),
+                for (final line in voteLines)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      spacing: 6,
+                      children: [
+                        const Icon(
+                          Icons.how_to_vote_rounded,
+                          size: 16,
+                          color: GameStyle.crimson,
+                        ),
+                        Expanded(
+                          child: Text(
+                            line,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 14),
                 SizedBox(
                   height: 60,
@@ -595,6 +722,105 @@ class _SeatCameraViewerState extends State<SeatCameraViewer> {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A voter's seat number under a target's vote count.
+class _VoterDot extends StatelessWidget {
+  const _VoterDot({required this.text, required this.settled});
+
+  final String text;
+  final bool settled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 22,
+      height: 18,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(
+          color: settled
+              ? Colors.white.withValues(alpha: 0.25)
+              : GameStyle.crimson.withValues(alpha: 0.8),
+        ),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+}
+
+/// Who a seat's player voted for: the target, or none for a skip.
+class SeatVote {
+  const SeatVote({required this.target, this.targetIsMe = false});
+
+  final Player? target;
+  final bool targetIsMe;
+}
+
+/// "→ 4 · Jasur" on the voter's own seat.
+class _VotePill extends StatelessWidget {
+  const _VotePill({
+    super.key,
+    required this.text,
+    required this.skipped,
+    required this.mine,
+    required this.settled,
+  });
+
+  final String text;
+  final bool skipped;
+  final bool mine;
+  final bool settled;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = settled || skipped
+        ? Colors.black.withValues(alpha: 0.55)
+        : mine
+        ? Palette.gold
+        : GameStyle.crimson;
+    final ink = !settled && !skipped && mine
+        ? Palette.background
+        : Colors.white;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(5, 2, 8, 2),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(9),
+        border: settled
+            ? Border.all(color: Colors.white.withValues(alpha: 0.25))
+            : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 3,
+        children: [
+          Icon(
+            skipped ? Icons.block_rounded : Icons.arrow_forward_rounded,
+            size: 12,
+            color: ink,
+          ),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: ink,
+              ),
             ),
           ),
         ],
