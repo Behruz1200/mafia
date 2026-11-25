@@ -89,6 +89,8 @@
   "gameYou": "You",
   "gameHost": "Host",
   "gameOffline": "Offline",
+  "gameSeatFullScreen": "Full screen",
+  "@gameSeatFullScreen": {"description": "Hint on a camera seat: holding it opens the camera full screen."},
   "gamePhaseRoleReveal": "Your role",
   "gamePhaseEnded": "Game over",
   "gameRound": "Round {round}",

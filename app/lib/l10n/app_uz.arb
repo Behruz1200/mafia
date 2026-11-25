@@ -79,6 +79,7 @@
   "gameYou": "Siz",
   "gameHost": "Xona egasi",
   "gameOffline": "Oflayn",
+  "gameSeatFullScreen": "To'liq ekran",
   "gamePhaseRoleReveal": "Sizning rolingiz",
   "gamePhaseEnded": "O‘yin tugadi",
   "gameRound": "{round}-davra",

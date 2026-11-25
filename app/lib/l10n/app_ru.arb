@@ -79,6 +79,7 @@
   "gameYou": "Вы",
   "gameHost": "Хозяин",
   "gameOffline": "Не в сети",
+  "gameSeatFullScreen": "Во весь экран",
   "gamePhaseRoleReveal": "Ваша роль",
   "gamePhaseEnded": "Игра окончена",
   "gameRound": "Раунд {round}",
