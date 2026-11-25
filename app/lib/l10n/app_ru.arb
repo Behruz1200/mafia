@@ -323,5 +323,10 @@
   "storySleptLine": "…и этой ночью его способность не сработала.",
   "storyManiacWinsLine": "Маньяк пережил всех.",
   "gameRolesAdd": "Добавить: {role}",
-  "gameRolesRemove": "Убрать: {role}"
+  "gameRolesRemove": "Убрать: {role}",
+  "shotCaptionAim": "Выстрел в ночи…",
+  "shotCaptionOut": "{name} выбывает!",
+  "shotCaptionVote": "Город решил…",
+  "shotStampVotedOut": "Город против",
+  "shotSeatOut": "Вне игры"
 }

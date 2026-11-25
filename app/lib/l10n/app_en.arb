@@ -373,5 +373,11 @@
   "gameRolesAdd": "Add {role}",
   "@gameRolesAdd": {"placeholders": {"role": {"type": "String"}}},
   "gameRolesRemove": "Remove {role}",
-  "@gameRolesRemove": {"placeholders": {"role": {"type": "String"}}}
+  "@gameRolesRemove": {"placeholders": {"role": {"type": "String"}}},
+  "shotCaptionAim": "A shot in the night…",
+  "shotCaptionOut": "{name} is out!",
+  "@shotCaptionOut": {"placeholders": {"name": {"type": "String"}}},
+  "shotCaptionVote": "The town has spoken…",
+  "shotStampVotedOut": "Voted out",
+  "shotSeatOut": "Out"
 }

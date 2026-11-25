@@ -323,5 +323,10 @@
   "storySleptLine": "…bu tun uning kuchi ishlamadi.",
   "storyManiacWinsLine": "Manyak hammadan omon qoldi.",
   "gameRolesAdd": "Qo‘shish: {role}",
-  "gameRolesRemove": "Olib tashlash: {role}"
+  "gameRolesRemove": "Olib tashlash: {role}",
+  "shotCaptionAim": "Tunda o‘q uzildi…",
+  "shotCaptionOut": "{name} o‘yindan chiqdi!",
+  "shotCaptionVote": "Shahar qaror qildi…",
+  "shotStampVotedOut": "Chiqarildi",
+  "shotSeatOut": "Chiqdi"
 }

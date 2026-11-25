@@ -10,6 +10,10 @@ import '../ui/game_text.dart';
 /// picture to show when there is no video.
 typedef SeatFace = Widget Function(UserId userId, Widget placeholder);
 
+/// What fills the seat of a player who is out, or null for the usual
+/// dimmed seat with a cross.
+typedef OutFace = Widget? Function(UserId userId, Widget placeholder);
+
 /// Everyone at the table, in seat order. Shows who is alive, open vote
 /// counts, and what only I know (my Mafia teammates, my check results).
 /// When [selectable] is not empty, those seats can be tapped to pick a
@@ -25,6 +29,7 @@ class PlayerTable extends StatelessWidget {
     this.selected,
     this.onSelect,
     this.face,
+    this.outFace,
     this.overlays = const {},
     this.highlight,
     this.notes = const {},
@@ -38,6 +43,9 @@ class PlayerTable extends StatelessWidget {
   final UserId? selected;
   final ValueChanged<UserId>? onSelect;
   final SeatFace? face;
+
+  /// The seats of players who are out, e.g. their frozen last picture.
+  final OutFace? outFace;
 
   /// Drawn over a seat, e.g. an emoji the player just popped.
   final Map<UserId, Widget> overlays;
@@ -89,6 +97,7 @@ class PlayerTable extends StatelessWidget {
               selectable: selectable.contains(p.userId),
               selected: selected == p.userId,
               face: face,
+              outFace: outFace,
               overlay: overlays[p.userId],
               highlighted: highlight == p.userId,
               note: notes[p.userId],
@@ -129,6 +138,7 @@ class SeatTile extends StatelessWidget {
     this.selectable = false,
     this.selected = false,
     this.face,
+    this.outFace,
     this.onTap,
     this.onLongPress,
     this.overlay,
@@ -148,6 +158,7 @@ class SeatTile extends StatelessWidget {
   final bool selectable;
   final bool selected;
   final SeatFace? face;
+  final OutFace? outFace;
   final VoidCallback? onTap;
 
   /// Opens the camera full screen.
@@ -169,6 +180,10 @@ class SeatTile extends StatelessWidget {
     final name = isMe ? t.gameYou : player.displayName;
 
     final placeholder = SeatPlaceholder(player: player);
+
+    final out = dead && !highlighted
+        ? outFace?.call(player.userId, placeholder)
+        : null;
 
     final (ringColor, ringWidth) = highlighted
         ? (Palette.gold, 3.0)
@@ -213,11 +228,19 @@ class SeatTile extends StatelessWidget {
             onTap: onTap,
             onLongPress: onLongPress,
             child: Opacity(
-              opacity: (dead && !highlighted) || note != null ? 0.55 : 1,
+              opacity: note != null
+                  ? 0.55
+                  : out != null
+                  ? 0.9
+                  : dead && !highlighted
+                  ? 0.55
+                  : 1,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (face != null && (!dead || highlighted))
+                  if (out != null)
+                    out
+                  else if (face != null && (!dead || highlighted))
                     face!(player.userId, placeholder)
                   else
                     placeholder,
@@ -232,7 +255,7 @@ class SeatTile extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (dead && !highlighted)
+                  if (dead && !highlighted && out == null)
                     const Center(
                       child: Icon(
                         Icons.close_rounded,

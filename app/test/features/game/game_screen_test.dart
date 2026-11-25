@@ -599,4 +599,86 @@ void main() {
       expect(find.text('Only Kamola can write now.'), findsOneWidget);
     });
   });
+
+  group('shot after the last word', () {
+    PublicEvent out(UserId u, EliminationCause cause) => PublicEvent(
+      round: 1,
+      phase: cause == EliminationCause.votedOut
+          ? GamePhase.voting
+          : GamePhase.night,
+      message: 'eliminated',
+      userId: u,
+      cause: cause,
+    );
+
+    Future<void> endLastWord(
+      WidgetTester tester,
+      EliminationCause cause,
+      GamePhase then,
+    ) async {
+      final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+      final log = [out('user_4', cause)];
+      repo
+        ..emitPublic(
+          _state(
+            GamePhase.lastWord,
+            lastWordBy: 'user_4',
+            dead: {'user_4'},
+            log: log,
+          ),
+        )
+        ..emitPrivate(samplePrivateState());
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('shot-panel')), findsNothing);
+      repo.emitPublic(_state(then, dead: {'user_4'}, log: log));
+      await tester.pump();
+      await tester.pump(); // the panel's clock starts here
+      await tester.pump(const Duration(milliseconds: 600));
+    }
+
+    testWidgets('a night kill plays the comic shot, then the seat keeps it', (
+      tester,
+    ) async {
+      await endLastWord(tester, EliminationCause.killedAtNight, GamePhase.day);
+      expect(find.byKey(const ValueKey('shot-panel')), findsOneWidget);
+      expect(find.text('A SHOT IN THE NIGHT…'), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 1800));
+      expect(find.text('KAMOLA IS OUT!'), findsOneWidget);
+
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('shot-panel')), findsNothing);
+      expect(find.byKey(const ValueKey('comic-out-face')), findsOneWidget);
+      expect(find.text('Out'), findsOneWidget);
+    });
+
+    testWidgets('a day vote stamps VOTED OUT instead of shooting', (
+      tester,
+    ) async {
+      await endLastWord(tester, EliminationCause.votedOut, GamePhase.night);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.text('VOTED OUT'), findsWidgets);
+      expect(find.text('A SHOT IN THE NIGHT…'), findsNothing);
+
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('shot-panel')), findsNothing);
+      expect(find.byKey(const ValueKey('comic-out-face')), findsOneWidget);
+    });
+
+    testWidgets('no panel for a player who just left', (tester) async {
+      final repo = await pumpGameUi(tester, const GameScreen(roomId: 'room_1'));
+      repo
+        ..emitPublic(
+          _state(
+            GamePhase.day,
+            dead: {'user_4'},
+            log: [out('user_4', EliminationCause.leftMatch)],
+          ),
+        )
+        ..emitPrivate(samplePrivateState());
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('shot-panel')), findsNothing);
+      expect(find.byKey(const ValueKey('comic-out-face')), findsNothing);
+    });
+  });
 }
