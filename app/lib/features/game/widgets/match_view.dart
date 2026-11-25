@@ -1,10 +1,14 @@
 import 'package:contracts/contracts.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../core/theme.dart';
 import '../../call/call_view.dart';
 import '../ui/game_style.dart';
+import '../shot/frozen_frame.dart';
+import '../shot/last_frame_keeper.dart';
+import '../shot/shot_panel.dart';
 import '../ui/game_text.dart';
 import 'chat_panel.dart';
 import 'phase_header.dart';
@@ -93,11 +97,36 @@ class _MatchViewState extends State<MatchView> {
     return null;
   }
 
+  /// Players whose comic panel is playing: their last word just ended and
+  /// they were shot or voted out.
+  final _playing = <({UserId id, OutKind kind})>[];
+
   @override
   void didUpdateWidget(MatchView old) {
     super.didUpdateWidget(old);
     // The server said no: nothing counts as sent any more.
     if (widget.refusals != old.refusals) _done.clear();
+    final s = widget.state;
+    if (s.matchId != old.state.matchId) {
+      _playing.clear();
+      return;
+    }
+    // A last word just ended: freeze that player's picture and play the
+    // shot (or the vote stamp) once.
+    final was = old.state.phase == GamePhase.lastWord
+        ? old.state.lastWordBy
+        : null;
+    if (was != null &&
+        (s.phase != GamePhase.lastWord || s.lastWordBy != was) &&
+        !_playing.any((p) => p.id == was) &&
+        !MediaQuery.disableAnimationsOf(context)) {
+      final kind = switch (outCause(s, was)) {
+        EliminationCause.killedAtNight => OutKind.shot,
+        EliminationCause.votedOut => OutKind.votedOut,
+        _ => null,
+      };
+      if (kind != null) _playing.add((id: was, kind: kind));
+    }
   }
 
   Set<UserId> _targets(String? action) {
@@ -220,7 +249,29 @@ class _MatchViewState extends State<MatchView> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             children: [
+              for (final p in _playing)
+                Consumer(
+                  key: ValueKey('shot-${p.id}'),
+                  builder: (context, ref, _) {
+                    ref.watch(frozenFramesProvider);
+                    return ShotPanel(
+                      kind: p.kind,
+                      name: p.id == widget.me ? t.gameYou : _name(p.id),
+                      frame: ref
+                          .read(frozenFramesProvider.notifier)
+                          .forMatch(s.matchId)[p.id],
+                      onDone: () => setState(
+                        () => _playing.removeWhere((q) => q.id == p.id),
+                      ),
+                    );
+                  },
+                ),
               if (speaker != null) ...[
+                LastFrameKeeper(
+                  key: ValueKey('keep-${s.matchId}-$speaker'),
+                  matchId: s.matchId,
+                  userId: speaker,
+                ),
                 _LastWordStage(
                   name: iSpeak ? t.gameYou : _name(speaker),
                   lines: [
@@ -252,6 +303,28 @@ class _MatchViewState extends State<MatchView> {
                       e.key: ReactionPop(emoji: e.value),
                   },
                   highlight: speaker,
+                  outFace: (id, placeholder) {
+                    // The seat turns into a comic once their panel is over.
+                    if (_playing.any((p) => p.id == id)) return null;
+                    final cause = outCause(s, id);
+                    if (cause != EliminationCause.killedAtNight &&
+                        cause != EliminationCause.votedOut) {
+                      return null;
+                    }
+                    return Consumer(
+                      builder: (context, ref, _) {
+                        ref.watch(frozenFramesProvider);
+                        return ComicOutFace(
+                          frame: ref
+                              .read(frozenFramesProvider.notifier)
+                              .forMatch(s.matchId)[id],
+                          fallback: placeholder,
+                          shot: cause == EliminationCause.killedAtNight,
+                          label: t.shotSeatOut,
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
               // Open voting: everyone sees who votes for whom, live.
@@ -705,4 +778,12 @@ class _ActionBar extends StatelessWidget {
       children: [modes!, row],
     );
   }
+}
+
+/// How [userId] left the match, from the public log; null while they play.
+EliminationCause? outCause(PublicGameState s, UserId userId) {
+  for (final e in s.log.reversed) {
+    if (e.message == 'eliminated' && e.userId == userId) return e.cause;
+  }
+  return null;
 }
